@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -11,23 +12,46 @@ cloudinary.config({
 
 export const uploadToCloudinary = async (filePath) => {
   try {
+    console.log('📤 Uploading to Cloudinary...');
+    
     const result = await cloudinary.uploader.upload(filePath, {
       resource_type: 'auto',
-      folder: 'cloud-storage'
+      folder: 'cloud-storage',
+      use_filename: true,
+      unique_filename: false
     });
+    
+    console.log('✅ Cloudinary upload successful:', result.secure_url);
+    
     return {
       url: result.secure_url,
-      publicId: result.public_id
+      publicId: result.public_id,
+      format: result.format,
+      size: result.bytes
     };
   } catch (error) {
-    throw new Error('Cloudinary upload failed');
+    console.error('❌ Cloudinary upload error:', error.message);
+    throw new Error(`Cloudinary upload failed: ${error.message}`);
   }
 };
 
+// ADD DELETE FUNCTION
 export const deleteFromCloudinary = async (publicId) => {
   try {
-    await cloudinary.uploader.destroy(publicId);
+    console.log(`🗑️  Deleting ${publicId} from Cloudinary...`);
+    
+    const result = await cloudinary.uploader.destroy(publicId);
+    
+    console.log('✅ Cloudinary delete result:', result);
+    return result;
+    
   } catch (error) {
-    throw new Error('Cloudinary delete failed');
+    console.error('❌ Cloudinary delete error:', error.message);
+    throw new Error(`Cloudinary delete failed: ${error.message}`);
   }
+};
+
+export default {
+  uploadToCloudinary,
+  deleteFromCloudinary
 };

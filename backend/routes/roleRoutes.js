@@ -6,8 +6,12 @@ const router = express.Router();
 router.use(protect);
 router.use(admin);
 
+// Placeholder route - we'll implement roles later
 router.get('/', (req, res) => {
-  res.json({ message: 'Roles endpoint' });
+  res.json({
+    roles: ['admin', 'user'],
+    message: 'Roles endpoint - implement as needed'
+  });
 });
 
 export default router;

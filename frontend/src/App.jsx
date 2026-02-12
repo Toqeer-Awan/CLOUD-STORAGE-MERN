@@ -1,7 +1,9 @@
+// frontend/src/App.jsx
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './redux/store';
+import { ThemeProvider } from './context/ThemeContext';
 import MainLayout from './layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
@@ -28,37 +30,39 @@ const AdminRoute = ({ children }) => {
 function App() {
   return (
     <Provider store={store}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }>
-            <Route index element={<Dashboard />} />
-            <Route path="upload" element={<Upload />} />
-            <Route path="files" element={<AllFiles />} />
-            <Route path="users/add" element={
-              <AdminRoute>
-                <AddUser />
-              </AdminRoute>
-            } />
-            <Route path="users/list" element={
-              <AdminRoute>
-                <UserList />
-              </AdminRoute>
-            } />
-            <Route path="roles" element={
-              <AdminRoute>
-                <RolesPermissions />
-              </AdminRoute>
-            } />
-          </Route>
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="upload" element={<Upload />} />
+              <Route path="files" element={<AllFiles />} />
+              <Route path="users/add" element={
+                <AdminRoute>
+                  <AddUser />
+                </AdminRoute>
+              } />
+              <Route path="users/list" element={
+                <AdminRoute>
+                  <UserList />
+                </AdminRoute>
+              } />
+              <Route path="roles" element={
+                <AdminRoute>
+                  <RolesPermissions />
+                </AdminRoute>
+              } />
+            </Route>
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </BrowserRouter>
+      </ThemeProvider>
     </Provider>
   );
 }

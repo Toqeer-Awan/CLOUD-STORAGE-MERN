@@ -1,3 +1,9 @@
+// ===== ABSOLUTE FIRST LINE =====
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+console.log('✅ DNS: IPv4 first order SET');
+
+// ===== NOW load other modules =====
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
@@ -8,38 +14,111 @@ import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
+import permissionsRoutes from './routes/permission.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Load environment variables - ONLY ONCE
 dotenv.config();
+
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️  JWT_SECRET is not set! Using default secret. This is not secure for production!');
+  process.env.JWT_SECRET = 'your-secret-key-change-this-in-production';
+}
+
+console.log('✅ Environment variables loaded');
+console.log('🔑 JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');
+console.log('📁 NODE_ENV:', process.env.NODE_ENV || 'development');
+
+// Connect to database
 connectDB();
 
 const app = express();
 
+// SIMPLIFIED CORS configuration - this is the key fix
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173'
+];
+
+// Use CORS middleware WITHOUT the explicit app.options
 app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('⚠️  CORS blocked origin:', origin);
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// REMOVE the app.options('*') line completely - it's causing the error
+// The cors middleware already handles OPTIONS requests automatically
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/roles', roleRoutes);
+app.use('/api/permissions', permissionsRoutes);
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+// Test endpoints
+app.get('/api/test', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'API is working',
+    jwt: process.env.JWT_SECRET ? '✅ Configured' : '❌ Not Configured',
+    mongo: '✅ Connected',
+    env: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
 
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Cloud Storage API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handler
 app.use((err, req, res, next) => {
-  console.error(err.message);
-  res.status(500).json({ error: 'Server error' });
+  console.error('❌ Server Error:', err.message);
+  console.error('📚 Stack:', err.stack);
+  
+  res.status(500).json({ 
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
 const PORT = process.env.PORT || 5000;
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`\n🚀 Server running on port ${PORT}`);
+  console.log(`🔗 API URL: http://localhost:${PORT}/api`);
+  console.log(`🌐 Frontend: http://localhost:3000`);
+  console.log('☁️  Cloud Storage API Ready!\n');
 });
