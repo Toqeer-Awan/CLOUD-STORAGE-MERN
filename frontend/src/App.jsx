@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { store } from './redux/store';
 import { ThemeProvider } from './context/ThemeContext';
+import ToasterProvider from './components/ToasterProvider';
 import MainLayout from './layout/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Upload from './pages/Upload';
@@ -34,6 +35,7 @@ function App() {
     <Provider store={store}>
       <ThemeProvider>
         <BrowserRouter>
+          <ToasterProvider />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
@@ -47,8 +49,6 @@ function App() {
               <Route path="upload" element={<Upload />} />
               <Route path="files" element={<AllFiles />} />
               <Route path="company" element={<CompanyDashboard />} />
-              
-              {/* Admin Routes */}
               <Route path="users/add" element={
                 <AdminRoute>
                   <AddUser />

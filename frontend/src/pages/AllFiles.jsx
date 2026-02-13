@@ -3,7 +3,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import FileTable from '../components/FileTable';
 import { setFiles, removeFile } from '../redux/slices/fileSlice';
 import { fileAPI } from '../redux/api/api';
-import { MdSearch, MdFilterList, MdSort } from "react-icons/md";
+import useToast from '../hooks/useToast';
+import { MdSearch, MdFilterList, MdSort, MdRefresh } from "react-icons/md";
 
 const AllFiles = () => {
   const dispatch = useDispatch();
@@ -13,6 +14,7 @@ const AllFiles = () => {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date');
   const [loading, setLoading] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     fetchFiles();
@@ -33,8 +35,9 @@ const AllFiles = () => {
         uploadedBy: file.uploadedBy
       }));
       dispatch(setFiles(formattedFiles));
+      toast.success('Files refreshed');
     } catch (error) {
-      console.error('Error fetching files:', error);
+      toast.error('Failed to fetch files');
     } finally {
       setLoading(false);
     }
@@ -43,13 +46,18 @@ const AllFiles = () => {
   const handleDeleteFile = async (fileId) => {
     const file = files.find(f => f._id === fileId || f.id === fileId);
     if (!file) return;
-    if (!window.confirm(`Delete "${file.name}"?`)) return;
+    
+    const loadingToast = toast.loading(`Deleting ${file.name}...`);
+    
     try {
       await fileAPI.deleteFile(fileId);
       dispatch(removeFile(fileId));
+      toast.dismiss(loadingToast);
+      toast.deleteSuccess('File deleted successfully');
       fetchFiles();
     } catch (error) {
-      alert('Failed to delete file');
+      toast.dismiss(loadingToast);
+      toast.error('Failed to delete file');
     }
   };
 
@@ -82,7 +90,12 @@ const AllFiles = () => {
             <h1 className="text-2xl font-bold text-gray-800 mb-2">All Files</h1>
             <p className="text-gray-600">{visibleFiles.length} files • Role: {user?.role}</p>
           </div>
-          <button onClick={fetchFiles} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <button 
+            onClick={fetchFiles} 
+            disabled={loading} 
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            <MdRefresh className={loading ? 'animate-spin' : ''} />
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>

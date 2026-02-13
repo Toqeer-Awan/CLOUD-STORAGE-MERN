@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { addUser } from '../redux/slices/userSlice';
 import { userAPI } from '../redux/api/api';
+import useToast from '../hooks/useToast';
 
 const AddUser = () => {
   const [formData, setFormData] = useState({
@@ -10,6 +11,7 @@ const AddUser = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
+  const toast = useToast();
 
   const validateForm = () => {
     const newErrors = {};
@@ -35,11 +37,11 @@ const AddUser = () => {
         role: formData.role
       });
       dispatch(addUser(response.data.user));
-      alert('User created successfully!');
+      toast.userAdded('User created successfully!');
       setFormData({ username: '', email: '', password: '', confirmPassword: '', role: 'user' });
       setErrors({});
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to create user');
+      toast.error(error.response?.data?.error || 'Failed to create user');
     } finally {
       setLoading(false);
     }
@@ -103,7 +105,6 @@ const AddUser = () => {
               placeholder="Enter password"
             />
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
-            <p className="mt-1 text-xs text-gray-500">Must be at least 6 characters</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { setUsers, updateUserRole, deleteUser } from '../redux/slices/userSlice';
 import { userAPI } from '../redux/api/api';
+import useToast from '../hooks/useToast';
 import { MdDelete, MdSearch, MdRefresh } from "react-icons/md";
 
 const UserList = () => {
@@ -12,6 +13,7 @@ const UserList = () => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [updating, setUpdating] = useState({});
+  const toast = useToast();
 
   useEffect(() => {
     fetchUsers();
@@ -22,8 +24,9 @@ const UserList = () => {
     try {
       const response = await userAPI.getAllUsers();
       dispatch(setUsers(response.data));
+      toast.success('Users list refreshed');
     } catch (err) {
-      console.error('Error fetching users:', err);
+      toast.error('Failed to fetch users');
     } finally {
       setLoading(false);
     }
@@ -34,8 +37,9 @@ const UserList = () => {
     try {
       await userAPI.updateRole(userId, { role: newRole });
       dispatch(updateUserRole({ userId, role: newRole }));
+      toast.info(`Role updated to ${newRole}`);
     } catch (err) {
-      console.error('Error updating role:', err);
+      toast.error('Failed to update role');
     } finally {
       setUpdating(prev => ({ ...prev, [userId]: false }));
     }
@@ -47,8 +51,9 @@ const UserList = () => {
     try {
       await userAPI.deleteUser(userId);
       dispatch(deleteUser(userId));
+      toast.deleteSuccess('User deleted successfully');
     } catch (err) {
-      console.error('Error deleting user:', err);
+      toast.error('Failed to delete user');
     } finally {
       setUpdating(prev => ({ ...prev, [userId]: false }));
     }

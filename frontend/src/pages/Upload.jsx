@@ -3,7 +3,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import FileTable from '../components/FileTable';
 import { addFile } from '../redux/slices/fileSlice';
 import { fileAPI } from '../redux/api/api';
-import { MdUpload, MdCloud, MdImage, MdPictureAsPdf, MdDescription, MdVideoLibrary } from "react-icons/md";
+import useToast from '../hooks/useToast';
+import { MdUpload, MdCloud } from "react-icons/md";
 
 const Upload = () => {
   const [files, setLocalFiles] = useState([]);
@@ -12,6 +13,7 @@ const Upload = () => {
   const [isUploading, setIsUploading] = useState(false);
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const toast = useToast();
 
   const handleFileSelect = (selectedFiles) => {
     const newFiles = Array.from(selectedFiles).map(file => ({
@@ -27,13 +29,18 @@ const Upload = () => {
       uploadedAt: new Date().toISOString()
     }));
     setLocalFiles(prev => [...prev, ...newFiles]);
+    toast.success(`${newFiles.length} file(s) selected`);
   };
 
   const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e) => { e.preventDefault(); setIsDragging(false); handleFileSelect(e.dataTransfer.files); };
   const handleFileInput = (e) => { handleFileSelect(e.target.files); e.target.value = ''; };
-  const removeFile = (fileId) => setLocalFiles(prev => prev.filter(file => file.id !== fileId));
+  
+  const removeFile = (fileId) => {
+    setLocalFiles(prev => prev.filter(file => file.id !== fileId));
+    toast.info('File removed');
+  };
 
   const uploadFile = async (fileData) => {
     const formData = new FormData();
@@ -45,25 +52,39 @@ const Upload = () => {
       
       setLocalFiles(prev => prev.map(f => f.id === fileData.id ? { ...f, progress: 100 } : f));
       dispatch(addFile(response.data.file));
-      return { success: true };
+      return { success: true, fileName: fileData.name };
     } catch (error) {
-      return { success: false, error: error.message };
+      return { success: false, fileName: fileData.name, error: error.message };
     }
   };
 
   const handleUpload = async () => {
     if (files.length === 0) {
-      alert('Please select files');
+      toast.error('Please select files to upload');
       return;
     }
+
     setIsUploading(true);
+    const loadingToast = toast.loading(`Uploading ${files.length} file(s)...`);
+
     const results = await Promise.all(files.map(file => uploadFile(file)));
-    setIsUploading(false);
+    
     const successful = results.filter(r => r.success).length;
-    alert(`Uploaded ${successful} file(s)`);
+    const failed = results.filter(r => !r.success).length;
+
+    toast.dismiss(loadingToast);
+
+    if (successful > 0) {
+      toast.uploadSuccess(`${successful} file(s) uploaded successfully`);
+    }
+    if (failed > 0) {
+      toast.error(`${failed} file(s) failed to upload`);
+    }
+
     setLocalFiles(prev => prev.filter(file => 
-      !results.some(r => r.success && r.success === true)
+      !results.some(r => r.success && r.fileName === file.name)
     ));
+    setIsUploading(false);
   };
 
   return (
@@ -128,7 +149,10 @@ const Upload = () => {
         <span className="text-gray-700 font-medium">{files.length} file(s) selected</span>
         <div className="flex gap-3">
           <button
-            onClick={() => setLocalFiles([])}
+            onClick={() => {
+              setLocalFiles([]);
+              toast.info('All files cleared');
+            }}
             disabled={files.length === 0 || isUploading}
             className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50"
           >
