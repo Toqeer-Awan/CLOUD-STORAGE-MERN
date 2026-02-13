@@ -65,6 +65,7 @@ export const authAPI = {
 
 export const userAPI = {
   getAllUsers: () => API.get('/users'),
+  getCompanyUsers: (companyId) => API.get(`/users/company/${companyId}`),
   createUser: userData => API.post('/users', userData),
   updateRole: (id, roleData) => API.put(`/users/${id}/role`, roleData),
   deleteUser: id => API.delete(`/users/${id}`),
@@ -76,6 +77,7 @@ export const userAPI = {
 
 export const fileAPI = {
   getAllFiles: () => API.get('/files'),
+  getCompanyFiles: (companyId) => API.get(`/files/company/${companyId}`),
   uploadToCloudinary: (formData, onUploadProgress) =>
     API.post('/files/upload/cloudinary', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -89,4 +91,11 @@ export const fileAPI = {
   deleteFile: id => API.delete(`/files/${id}`),
 };
 
+export const companyAPI = {
+  getAllCompanies: () => API.get('/companies'),
+  getMyCompany: () => API.get('/companies/me'),
+  getCompanyById: (id) => API.get(`/companies/${id}`),
+  updateCompanyStorage: (id, data) => API.put(`/companies/${id}/storage`, data),
+  deleteCompany: (id) => API.delete(`/companies/${id}`),
+};
 export default API;

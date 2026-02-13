@@ -1,4 +1,6 @@
+// backend/controllers/fileController.js
 import File from "../models/File.js";
+import Company from "../models/Company.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -10,15 +12,17 @@ export const getFiles = async (req, res) => {
   try {
     let files;
 
-    if (req.user.role === "admin" || req.user.permissions?.canDeleteAllFiles) {
-      // Admins and moderators can see all files
-      files = await File.find().populate("uploadedBy", "username email role");
+    if (req.user.role === "admin") {
+      // Admins can see all files
+      files = await File.find()
+        .populate("uploadedBy", "username email role")
+        .populate("company", "name");
     } else {
-      // Regular users can only see their own files
-      files = await File.find({ uploadedBy: req.user.id }).populate(
-        "uploadedBy",
-        "username email role",
-      );
+      // Users can only see files from their company
+      files = await File.find({ company: req.user.company })
+        .populate("uploadedBy", "username email role")
+        .populate("company", "name")
+        .sort({ uploadDate: -1 });
     }
 
     res.json(files);
@@ -28,10 +32,30 @@ export const getFiles = async (req, res) => {
   }
 };
 
+export const getCompanyFiles = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    
+    // Check if user has access to this company
+    if (req.user.role !== 'admin' && req.user.company.toString() !== companyId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const files = await File.find({ company: companyId })
+      .populate("uploadedBy", "username email role")
+      .sort({ uploadDate: -1 });
+
+    res.json(files);
+  } catch (error) {
+    console.error("Get company files error:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 export const uploadToCloudinaryHandler = async (req, res) => {
   try {
     // Check upload permission
-    if (!req.user.permissions?.canUploadFiles && req.user.role !== 'admin') {
+    if (!req.user.permissions?.upload && req.user.role !== 'admin') {
       return res.status(403).json({ 
         error: 'Access denied',
         message: 'You do not have permission to upload files'
@@ -44,6 +68,18 @@ export const uploadToCloudinaryHandler = async (req, res) => {
 
     const file = req.file;
     console.log("Uploading file to Cloudinary:", file.originalname);
+
+    // Check company storage quota
+    const company = await Company.findById(req.user.company);
+    const files = await File.find({ company: company._id });
+    const totalStorageUsed = files.reduce((acc, f) => acc + f.size, 0);
+    
+    if (totalStorageUsed + file.size > company.totalStorage) {
+      return res.status(400).json({
+        error: "Storage limit exceeded",
+        message: `Cannot upload. Company storage limit: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(2)}GB`
+      });
+    }
 
     const cloudinaryResult = await uploadToCloudinary(file.path);
 
@@ -60,7 +96,12 @@ export const uploadToCloudinaryHandler = async (req, res) => {
       ),
       publicId: cloudinaryResult.publicId,
       uploadedBy: req.user.id,
+      company: req.user.company,
     });
+
+    // Update company used storage
+    company.usedStorage = totalStorageUsed + file.size;
+    await company.save();
 
     // Clean up temp file
     if (fs.existsSync(file.path)) {
@@ -89,7 +130,7 @@ export const uploadToCloudinaryHandler = async (req, res) => {
 export const uploadToS3Handler = async (req, res) => {
   try {
     // Check upload permission
-    if (!req.user.permissions?.canUploadFiles && req.user.role !== 'admin') {
+    if (!req.user.permissions?.upload && req.user.role !== 'admin') {
       return res.status(403).json({ 
         error: 'Access denied',
         message: 'You do not have permission to upload files'
@@ -114,6 +155,18 @@ export const uploadToS3Handler = async (req, res) => {
       });
     }
 
+    // Check company storage quota
+    const company = await Company.findById(req.user.company);
+    const files = await File.find({ company: company._id });
+    const totalStorageUsed = files.reduce((acc, f) => acc + f.size, 0);
+    
+    if (totalStorageUsed + file.size > company.totalStorage) {
+      return res.status(400).json({
+        error: "Storage limit exceeded",
+        message: `Cannot upload. Company storage limit: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(2)}GB`
+      });
+    }
+
     const s3Url = await uploadToS3(file.path, file.originalname);
 
     const s3File = await File.create({
@@ -126,7 +179,12 @@ export const uploadToS3Handler = async (req, res) => {
       downloadUrl: s3Url,
       s3Key: file.originalname,
       uploadedBy: req.user.id,
+      company: req.user.company,
     });
+
+    // Update company used storage
+    company.usedStorage = totalStorageUsed + file.size;
+    await company.save();
 
     // Clean up temp file
     if (fs.existsSync(file.path)) {
@@ -166,17 +224,22 @@ export const deleteFile = async (req, res) => {
     if (req.user.role === 'admin') {
       // Admin can delete anything - proceed
     } 
-    else if (req.user.permissions?.canDeleteAllFiles) {
-      // User can delete all files - proceed
+    else if (req.user.permissions?.delete) {
+      // User can delete files - proceed
     }
-    else if (isOwner && req.user.permissions?.canDeleteOwnFiles) {
-      // User owns the file and can delete own files - proceed
+    else if (isOwner) {
+      // User owns the file - proceed
     }
     else {
       return res.status(403).json({ 
         error: "Access denied",
         message: "You do not have permission to delete this file"
       });
+    }
+
+    // Check if file belongs to user's company
+    if (req.user.role !== 'admin' && file.company.toString() !== req.user.company.toString()) {
+      return res.status(403).json({ error: "Access denied" });
     }
 
     // Delete from storage based on type
@@ -194,6 +257,15 @@ export const deleteFile = async (req, res) => {
 
     // Delete from database
     await File.findByIdAndDelete(req.params.id);
+
+    // Update company used storage
+    const company = await Company.findById(file.company);
+    if (company) {
+      const files = await File.find({ company: company._id });
+      const totalStorageUsed = files.reduce((acc, f) => acc + f.size, 0);
+      company.usedStorage = totalStorageUsed;
+      await company.save();
+    }
 
     console.log("✅ File deleted from database");
 

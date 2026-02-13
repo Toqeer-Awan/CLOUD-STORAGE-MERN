@@ -1,9 +1,9 @@
-// frontend/src/pages/Login.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../redux/slices/authSlice';
 import { authAPI } from '../redux/api/api';
+import SocialLoginButtons from '../components/SocailLoginButtons';
 import { RiCloudLine } from 'react-icons/ri';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 import { IoSunny, IoMoon } from 'react-icons/io5';
@@ -36,23 +36,17 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-300">
-      {/* SINGLE DARK MODE TOGGLE - TOP RIGHT */}
       <button
         onClick={toggleDarkMode}
-        className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
-        aria-label="Toggle dark mode"
+        className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 z-50"
       >
-        {darkMode ? (
-          <IoSunny className="w-5 h-5 text-yellow-500" />
-        ) : (
-          <IoMoon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-        )}
+        {darkMode ? <IoSunny className="w-5 h-5 text-yellow-500" /> : <IoMoon className="w-5 h-5 text-gray-700" />}
       </button>
 
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <RiCloudLine className="text-orange-500 text-5xl mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Cloud Storage</h1>
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Welcome Back</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">Sign in to your account</p>
         </div>
         
@@ -73,7 +67,7 @@ const Login = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter your email"
               />
             </div>
@@ -88,13 +82,13 @@ const Login = () => {
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="Enter your password"
                 />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
                 >
                   {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
                 </button>
@@ -104,20 +98,22 @@ const Login = () => {
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50 transition-colors"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
-            
-            <div className="text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Don't have an account?{' '}
-                <Link to="/signup" className="text-orange-600 dark:text-orange-400 hover:underline">
-                  Sign up
-                </Link>
-              </p>
-            </div>
           </form>
+
+          <SocialLoginButtons mode="login" />
+
+          <div className="text-center mt-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Don't have an account?{' '}
+              <Link to="/signup" className="text-orange-600 dark:text-orange-400 hover:underline font-medium">
+                Sign up
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

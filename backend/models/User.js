@@ -10,6 +10,7 @@ const permissionsSchema = new mongoose.Schema(
     removeUser: { type: Boolean, default: false },
     changeRole: { type: Boolean, default: false },
     manageFiles: { type: Boolean, default: false },
+    manageStorage: { type: Boolean, default: false },
   },
   { _id: false }
 );
@@ -31,11 +32,20 @@ const userSchema = new mongoose.Schema(
     password: { 
       type: String, 
       required: [true, 'Password is required'],
-      select: false // This is important! It hides password by default
+      select: false
     },
     role: {
       type: String,
       default: 'user',
+    },
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Company',
+      required: false // 👈 CHANGE THIS FROM 'true' TO 'false'
+    },
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     },
     permissions: {
       type: permissionsSchema,
@@ -47,7 +57,8 @@ const userSchema = new mongoose.Schema(
         addUser: false,
         removeUser: false,
         changeRole: false,
-        manageFiles: false
+        manageFiles: false,
+        manageStorage: false
       }),
     },
   },

@@ -15,12 +15,18 @@ export const ThemeProvider = ({ children }) => {
   const [darkMode, setDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem('theme');
     // Check localStorage first, then system preference
-    return savedTheme === 'dark' || 
-      (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (savedTheme) {
+      return savedTheme === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
 
   useEffect(() => {
-    // THIS IS THE KEY - directly manipulate the document element
+    // Debug: Check current state
+    console.log('🎨 Theme changing to:', darkMode ? 'dark' : 'light');
+    console.log('HTML element before:', document.documentElement.classList.toString());
+    
+    // Apply theme to HTML element
     if (darkMode) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
@@ -28,10 +34,14 @@ export const ThemeProvider = ({ children }) => {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('theme', 'light');
     }
+    
+    // Debug: Verify after change
+    console.log('HTML element after:', document.documentElement.classList.toString());
+    console.log('localStorage theme:', localStorage.getItem('theme'));
   }, [darkMode]);
 
   const toggleDarkMode = () => {
-    console.log('Toggle clicked, current:', darkMode); // Debug log
+    console.log('🔄 Toggle clicked, current:', darkMode);
     setDarkMode(prev => !prev);
   };
 

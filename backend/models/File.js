@@ -26,15 +26,23 @@ const fileSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  downloadUrl: {
+    type: String
+  },
   publicId: {
-    type: String // For Cloudinary
+    type: String
   },
   s3Key: {
-    type: String // For AWS S3
+    type: String
   },
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
+    required: true
+  },
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
     required: true
   },
   uploadDate: {
@@ -50,6 +58,8 @@ const fileSchema = new mongoose.Schema({
   }]
 });
 
-const File = mongoose.model('File', fileSchema);
+// Index for faster queries
+fileSchema.index({ company: 1, uploadDate: -1 });
 
+const File = mongoose.model('File', fileSchema);
 export default File;

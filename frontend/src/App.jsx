@@ -1,4 +1,3 @@
-// frontend/src/App.jsx
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -10,9 +9,12 @@ import Upload from './pages/Upload';
 import AllFiles from './pages/AllFiles';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import OAuthCallback from './pages/OAuthCallback';
 import AddUser from './pages/AddUser';
 import UserList from './pages/UserList';
 import RolesPermissions from './pages/RolePermissions';
+import CompanyDashboard from './components/CompanyDashboard';
+import AdminCompanies from './components/AdminCompanies';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -35,6 +37,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/oauth-callback" element={<OAuthCallback />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <MainLayout />
@@ -43,6 +46,9 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="upload" element={<Upload />} />
               <Route path="files" element={<AllFiles />} />
+              <Route path="company" element={<CompanyDashboard />} />
+              
+              {/* Admin Routes */}
               <Route path="users/add" element={
                 <AdminRoute>
                   <AddUser />
@@ -56,6 +62,11 @@ function App() {
               <Route path="roles" element={
                 <AdminRoute>
                   <RolesPermissions />
+                </AdminRoute>
+              } />
+              <Route path="admin/companies" element={
+                <AdminRoute>
+                  <AdminCompanies />
                 </AdminRoute>
               } />
             </Route>

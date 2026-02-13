@@ -1,3 +1,4 @@
+// backend/middleware/auth.js
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
@@ -15,7 +16,9 @@ export const protect = async (req, res, next) => {
     
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.id).select('-password');
+      const user = await User.findById(decoded.id)
+        .select('-password')
+        .populate('company');
       
       if (!user) {
         return res.status(401).json({ error: 'User not found' });
@@ -38,5 +41,13 @@ export const admin = (req, res, next) => {
     next();
   } else {
     return res.status(403).json({ error: 'Not authorized as admin' });
+  }
+};
+
+export const companyOwner = (req, res, next) => {
+  if (req.user && (req.user.role === 'admin' || req.user.permissions?.addUser)) {
+    next();
+  } else {
+    return res.status(403).json({ error: 'Not authorized as company owner' });
   }
 };

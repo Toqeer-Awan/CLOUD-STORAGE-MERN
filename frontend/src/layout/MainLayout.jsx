@@ -6,7 +6,8 @@ import { logout } from "../redux/slices/authSlice";
 import { FaBars, FaTimes } from "react-icons/fa";
 import { 
   MdDashboard, MdCloudUpload, MdFolder, MdLogout, 
-  MdAdd, MdList, MdLock 
+  MdAdd, MdList, MdLock,
+  MdBusiness, MdBusinessCenter 
 } from "react-icons/md";
 import { RiCloudLine } from "react-icons/ri";
 import { IoSunny, IoMoon } from "react-icons/io5";
@@ -42,12 +43,15 @@ const MainLayout = () => {
     { path: "/", icon: <MdDashboard />, label: "Dashboard", show: true },
     { path: "/upload", icon: <MdCloudUpload />, label: "Upload", show: true },
     { path: "/files", icon: <MdFolder />, label: "All Files", show: true },
+    { path: "/company", icon: <MdBusiness />, label: "My Company", show: true }, // NEW
   ];
+
 
   const adminItems = [
     { path: "/users/add", icon: <MdAdd />, label: "Add User", show: isAdmin },
     { path: "/users/list", icon: <MdList />, label: "Users List", show: isAdmin },
     { path: "/roles", icon: <MdLock />, label: "Roles & Permissions", show: isAdmin },
+    { path: "/admin/companies", icon: <MdBusinessCenter />, label: "Companies", show: isAdmin }, // NEW
   ];
 
   return (

@@ -5,12 +5,12 @@ import User from './models/User.js';
 import Role from './models/Role.js';
 import File from './models/File.js';
 import Permission from './models/Permission.js';
+import Company from './models/Company.js';
 
 dotenv.config();
 
 const seedDatabase = async () => {
   try {
-    // Connect to MongoDB
     await mongoose.connect(process.env.MONGODB_URI, {
       family: 4,
     });
@@ -21,7 +21,8 @@ const seedDatabase = async () => {
       User.deleteMany({}),
       Role.deleteMany({}),
       File.deleteMany({}),
-      Permission.deleteMany({})
+      Permission.deleteMany({}),
+      Company.deleteMany({})
     ]);
     console.log('🗑️  Cleared all collections');
 
@@ -49,10 +50,10 @@ const seedDatabase = async () => {
       { name: 'edit_roles', displayName: 'Edit Roles', description: 'Can edit role permissions', category: 'roles' },
       { name: 'delete_roles', displayName: 'Delete Roles', description: 'Can delete custom roles', category: 'roles' },
       
-      // System permissions
-      { name: 'view_analytics', displayName: 'View Analytics', description: 'Can view dashboard analytics', category: 'system' },
-      { name: 'manage_settings', displayName: 'Manage Settings', description: 'Can manage system settings', category: 'system' },
-      { name: 'view_logs', displayName: 'View Logs', description: 'Can view system logs', category: 'system' },
+      // Company management permissions
+      { name: 'manage_company', displayName: 'Manage Company', description: 'Can manage company settings', category: 'system' },
+      { name: 'view_company_stats', displayName: 'View Company Stats', description: 'Can view company statistics', category: 'system' },
+      { name: 'manage_storage', displayName: 'Manage Storage', description: 'Can manage storage limits', category: 'system' },
     ];
 
     const createdPermissions = await Permission.insertMany(permissionsData);
@@ -67,17 +68,9 @@ const seedDatabase = async () => {
       displayName: 'Administrator',
       description: 'Full system access with all permissions',
       permissions: {
-        view: true,
-        upload: true,
-        download: true,
-        delete: true,
-        addUser: true,
-        removeUser: true,
-        changeRole: true,
-        manageFiles: true,
-        viewAnalytics: true,
-        manageSettings: true,
-        viewLogs: true
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: true, manageFiles: true,
+        manageStorage: true
       },
       permissionIds: createdPermissions.map(p => p._id),
       isCustom: false,
@@ -90,150 +83,148 @@ const seedDatabase = async () => {
       displayName: 'Moderator',
       description: 'Can manage files and content, but cannot manage users',
       permissions: {
-        view: true,
-        upload: true,
-        download: true,
-        delete: true,
-        addUser: false,
-        removeUser: false,
-        changeRole: false,
-        manageFiles: true,
-        viewAnalytics: true,
-        manageSettings: false,
-        viewLogs: false
+        view: true, upload: true, download: true, delete: true,
+        addUser: false, removeUser: false, changeRole: false, manageFiles: true,
+        manageStorage: false
       },
       isCustom: false,
       priority: 2
     });
 
-    // User Role
+    // User Role (Company Owner)
     const userRole = await Role.create({
       name: 'user',
-      displayName: 'Regular User',
-      description: 'Can upload and manage their own files',
+      displayName: 'Company Owner',
+      description: 'Can manage their company and upload files',
       permissions: {
-        view: true,
-        upload: true,
-        download: true,
-        delete: false,
-        addUser: false,
-        removeUser: false,
-        changeRole: false,
-        manageFiles: false,
-        viewAnalytics: false,
-        manageSettings: false,
-        viewLogs: false
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: false, manageFiles: true,
+        manageStorage: false
       },
       isCustom: false,
       priority: 3
     });
 
-    // Editor Role (Custom)
-    const editorRole = await Role.create({
-      name: 'editor',
-      displayName: 'Content Editor',
-      description: 'Can upload and edit files, but cannot delete',
-      permissions: {
-        view: true,
-        upload: true,
-        download: true,
-        delete: false,
-        addUser: false,
-        removeUser: false,
-        changeRole: false,
-        manageFiles: true,
-        viewAnalytics: false,
-        manageSettings: false,
-        viewLogs: false
-      },
-      isCustom: true,
-      priority: 4
-    });
-
-    // Viewer Role (Custom)
-    const viewerRole = await Role.create({
-      name: 'viewer',
-      displayName: 'Viewer',
-      description: 'Can only view and download files',
-      permissions: {
-        view: true,
-        upload: false,
-        download: true,
-        delete: false,
-        addUser: false,
-        removeUser: false,
-        changeRole: false,
-        manageFiles: false,
-        viewAnalytics: false,
-        manageSettings: false,
-        viewLogs: false
-      },
-      isCustom: true,
-      priority: 5
-    });
-
     console.log(`✅ Created ${await Role.countDocuments()} roles`);
 
-    // ===== 3. CREATE USERS =====
-    console.log('\n👤 Creating users...');
+    // ===== 3. CREATE COMPANIES AND USERS =====
+    console.log('\n🏢 Creating companies and users...');
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash('password123', salt);
 
-    // Admin User
+    // --- ADMIN ---
+    // Create admin user first (with null company - allowed now)
     const adminUser = await User.create({
       username: 'admin',
       email: 'admin@example.com',
       password: hashedPassword,
       role: 'admin',
+      company: null, // ✅ Now allowed because required: false
+      addedBy: null,
       permissions: adminRole.permissions
     });
 
-    // Moderator User
-    const moderatorUser = await User.create({
-      username: 'moderator',
-      email: 'moderator@example.com',
+    // Create admin company with owner set
+    const adminCompany = await Company.create({
+      name: 'admin_company',
+      owner: adminUser._id,
+      totalStorage: 20 * 1024 * 1024 * 1024,
+      userCount: 1
+    });
+
+    // Update admin user with company ID
+    adminUser.company = adminCompany._id;
+    await adminUser.save();
+
+    // --- TECHCORP ---
+    // Create TechCorp owner first
+    const techCorpOwner = await User.create({
+      username: 'john_doe',
+      email: 'john@techcorp.com',
+      password: hashedPassword,
+      role: 'user',
+      company: null, // ✅ Now allowed
+      addedBy: null,
+      permissions: userRole.permissions
+    });
+
+    // Create TechCorp company with owner set
+    const techCorpCompany = await Company.create({
+      name: 'techcorp_company',
+      owner: techCorpOwner._id,
+      totalStorage: 10 * 1024 * 1024 * 1024,
+      userCount: 1
+    });
+
+    // Update owner with company ID
+    techCorpOwner.company = techCorpCompany._id;
+    await techCorpOwner.save();
+
+    // Add team members to TechCorp
+    const techCorpMember1 = await User.create({
+      username: 'jane_smith',
+      email: 'jane@techcorp.com',
       password: hashedPassword,
       role: 'moderator',
+      company: techCorpCompany._id, // ✅ Now has company ID
+      addedBy: techCorpOwner._id,
       permissions: moderatorRole.permissions
     });
 
-    // Regular User 1
-    const regularUser1 = await User.create({
-      username: 'john_doe',
-      email: 'john@example.com',
+    const techCorpMember2 = await User.create({
+      username: 'bob_wilson',
+      email: 'bob@techcorp.com',
       password: hashedPassword,
       role: 'user',
+      company: techCorpCompany._id, // ✅ Now has company ID
+      addedBy: techCorpOwner._id,
       permissions: userRole.permissions
     });
 
-    // Regular User 2
-    const regularUser2 = await User.create({
-      username: 'jane_smith',
-      email: 'jane@example.com',
+    // Update company user count
+    techCorpCompany.userCount = await User.countDocuments({ company: techCorpCompany._id });
+    await techCorpCompany.save();
+
+    // --- DESIGNSTUDIO ---
+    // Create DesignStudio owner first
+    const designStudioOwner = await User.create({
+      username: 'alice_designer',
+      email: 'alice@designstudio.com',
       password: hashedPassword,
       role: 'user',
+      company: null, // ✅ Now allowed
+      addedBy: null,
       permissions: userRole.permissions
     });
 
-    // Editor User
-    const editorUser = await User.create({
-      username: 'editor',
-      email: 'editor@example.com',
-      password: hashedPassword,
-      role: 'editor',
-      permissions: editorRole.permissions
+    // Create DesignStudio company with owner set
+    const designStudioCompany = await Company.create({
+      name: 'designstudio_company',
+      owner: designStudioOwner._id,
+      totalStorage: 5 * 1024 * 1024 * 1024,
+      userCount: 1
     });
 
-    // Viewer User
-    const viewerUser = await User.create({
-      username: 'viewer',
-      email: 'viewer@example.com',
+    // Update owner with company ID
+    designStudioOwner.company = designStudioCompany._id;
+    await designStudioOwner.save();
+
+    // Add team member to DesignStudio
+    const designStudioMember = await User.create({
+      username: 'charlie_artist',
+      email: 'charlie@designstudio.com',
       password: hashedPassword,
-      role: 'viewer',
-      permissions: viewerRole.permissions
+      role: 'user',
+      company: designStudioCompany._id, // ✅ Now has company ID
+      addedBy: designStudioOwner._id,
+      permissions: userRole.permissions
     });
 
+    designStudioCompany.userCount = await User.countDocuments({ company: designStudioCompany._id });
+    await designStudioCompany.save();
+
+    console.log(`✅ Created ${await Company.countDocuments()} companies`);
     console.log(`✅ Created ${await User.countDocuments()} users`);
 
     // ===== 4. CREATE SAMPLE FILES =====
@@ -241,65 +232,62 @@ const seedDatabase = async () => {
 
     const now = new Date();
     const filesData = [
+      // TechCorp files
       {
-        filename: 'profile-image-123.jpg',
-        originalName: 'profile-picture.jpg',
+        filename: 'project-proposal.pdf',
+        originalName: 'Q4 Project Proposal.pdf',
         size: 2.5 * 1024 * 1024,
-        mimetype: 'image/jpeg',
+        mimetype: 'application/pdf',
         storageType: 'cloudinary',
-        storageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/sample.jpg',
-        downloadUrl: 'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/sample.jpg',
-        publicId: 'samples/profile-picture',
-        uploadedBy: regularUser1._id,
+        storageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/proposal.pdf',
+        downloadUrl: 'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/proposal.pdf',
+        publicId: 'techcorp/proposal',
+        uploadedBy: techCorpOwner._id,
+        company: techCorpCompany._id,
         uploadDate: new Date(now - 2 * 24 * 60 * 60 * 1000),
-        isPublic: true,
-        tags: ['profile', 'image']
+        tags: ['proposal', 'pdf']
       },
       {
-        filename: 'annual-report-2024.pdf',
-        originalName: 'Annual Report 2024.pdf',
-        size: 5.8 * 1024 * 1024,
-        mimetype: 'application/pdf',
+        filename: 'mockups.zip',
+        originalName: 'UI Mockups.zip',
+        size: 15.2 * 1024 * 1024,
+        mimetype: 'application/zip',
         storageType: 's3',
-        storageUrl: 'https://my-bucket.s3.amazonaws.com/reports/annual-2024.pdf',
-        downloadUrl: 'https://my-bucket.s3.amazonaws.com/reports/annual-2024.pdf',
-        s3Key: 'reports/annual-2024.pdf',
-        uploadedBy: adminUser._id,
+        storageUrl: 'https://techcorp-bucket.s3.amazonaws.com/mockups.zip',
+        downloadUrl: 'https://techcorp-bucket.s3.amazonaws.com/mockups.zip',
+        s3Key: 'design/mockups.zip',
+        uploadedBy: techCorpMember1._id,
+        company: techCorpCompany._id,
         uploadDate: new Date(now - 5 * 24 * 60 * 60 * 1000),
-        isPublic: true,
-        tags: ['report', 'annual', 'pdf']
+        tags: ['design', 'mockups']
       },
+      // DesignStudio files
       {
-        filename: 'vacation-photo.jpg',
-        originalName: 'beach-vacation.jpg',
-        size: 3.2 * 1024 * 1024,
-        mimetype: 'image/jpeg',
+        filename: 'logo-design.png',
+        originalName: 'Company Logo.png',
+        size: 1.2 * 1024 * 1024,
+        mimetype: 'image/png',
         storageType: 'cloudinary',
-        storageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/beach.jpg',
-        downloadUrl: 'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/beach.jpg',
-        publicId: 'samples/beach',
-        uploadedBy: regularUser2._id,
-        uploadDate: new Date(now - 7 * 24 * 60 * 60 * 1000),
-        isPublic: true,
-        tags: ['vacation', 'beach', 'summer']
-      },
-      {
-        filename: 'product-catalog.pdf',
-        originalName: 'Summer Collection 2024.pdf',
-        size: 8.4 * 1024 * 1024,
-        mimetype: 'application/pdf',
-        storageType: 's3',
-        storageUrl: 'https://my-bucket.s3.amazonaws.com/catalogs/summer-2024.pdf',
-        downloadUrl: 'https://my-bucket.s3.amazonaws.com/catalogs/summer-2024.pdf',
-        s3Key: 'catalogs/summer-2024.pdf',
-        uploadedBy: editorUser._id,
+        storageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/logo.png',
+        downloadUrl: 'https://res.cloudinary.com/demo/image/upload/fl_attachment/v1/logo.png',
+        publicId: 'designstudio/logo',
+        uploadedBy: designStudioOwner._id,
+        company: designStudioCompany._id,
         uploadDate: new Date(now - 1 * 24 * 60 * 60 * 1000),
-        isPublic: true,
-        tags: ['catalog', 'products', 'summer-2024']
+        tags: ['logo', 'branding']
       }
     ];
 
     await File.insertMany(filesData);
+
+    // Update company used storage
+    for (const company of [techCorpCompany, designStudioCompany]) {
+      const files = await File.find({ company: company._id });
+      const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
+      company.usedStorage = totalStorageUsed;
+      await company.save();
+    }
+
     console.log(`✅ Created ${await File.countDocuments()} sample files`);
 
     // ===== FINAL SUMMARY =====
@@ -310,16 +298,26 @@ const seedDatabase = async () => {
     console.log('\n📊 DATABASE SUMMARY:');
     console.log(`   Permissions: ${await Permission.countDocuments()}`);
     console.log(`   Roles: ${await Role.countDocuments()}`);
+    console.log(`   Companies: ${await Company.countDocuments()}`);
     console.log(`   Users: ${await User.countDocuments()}`);
     console.log(`   Files: ${await File.countDocuments()}`);
     
+    console.log('\n🏢 COMPANIES:');
+    const companies = await Company.find().populate('owner', 'username');
+    companies.forEach(company => {
+      console.log(`   ├─ ${company.name}`);
+      console.log(`   │  Owner: ${company.owner?.username || 'Admin'}`);
+      console.log(`   │  Storage: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(1)}GB`);
+      console.log(`   │  Users: ${company.userCount}`);
+    });
+    
     console.log('\n👥 USER ACCOUNTS:');
     console.log('   ├─ Admin: admin@example.com / password123');
-    console.log('   ├─ Moderator: moderator@example.com / password123');
-    console.log('   ├─ Editor: editor@example.com / password123');
-    console.log('   ├─ Viewer: viewer@example.com / password123');
-    console.log('   ├─ John: john@example.com / password123');
-    console.log('   └─ Jane: jane@example.com / password123');
+    console.log('   ├─ TechCorp: john@techcorp.com / password123 (Owner)');
+    console.log('   ├─ TechCorp: jane@techcorp.com / password123 (Moderator)');
+    console.log('   ├─ TechCorp: bob@techcorp.com / password123 (User)');
+    console.log('   ├─ DesignStudio: alice@designstudio.com / password123 (Owner)');
+    console.log('   └─ DesignStudio: charlie@designstudio.com / password123 (User)');
     
     console.log('\n' + '='.repeat(50));
     

@@ -1,8 +1,10 @@
+// backend/controllers/authController.js
 import User from '../models/User.js';
+import Company from '../models/Company.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// @desc    Register a new user
+// @desc    Register a new user (creates their own company)
 // @route   POST /api/auth/register
 // @access  Public
 export const register = async (req, res) => {
@@ -16,11 +18,6 @@ export const register = async (req, res) => {
     
     // Validate required fields
     if (!username || !email || !password) {
-      console.log('❌ Missing fields:', { 
-        username: !!username, 
-        email: !!email, 
-        password: !!password 
-      });
       return res.status(400).json({ 
         error: 'Please provide username, email and password' 
       });
@@ -56,32 +53,52 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Set default permissions for new user
-    const defaultPermissions = {
-      view: true,
-      upload: true,
-      download: true,
-      delete: false,
-      addUser: false,
-      removeUser: false,
-      changeRole: false,
-      manageFiles: false
-    };
-    
-    // Create user
+    // 🔥 FIX 1: Create user FIRST with temporary company ID (null)
     const user = await User.create({
       username,
       email,
       password: hashedPassword,
       role: 'user',
-      permissions: defaultPermissions
+      company: null, // Temporary, will update after company creation
+      addedBy: null,
+      permissions: {
+        view: true,
+        upload: true,
+        download: true,
+        delete: true,
+        addUser: true,
+        removeUser: true,
+        changeRole: false,
+        manageFiles: true,
+        manageStorage: false
+      }
     });
     
+    // 🔥 FIX 2: Create company with owner set to user ID
+    const companyName = `${username.toLowerCase().replace(/\s+/g, '_')}_company`;
+    
+    const company = await Company.create({
+      name: companyName,
+      owner: user._id, // Set owner immediately
+      totalStorage: 5 * 1024 * 1024 * 1024, // 5GB default
+      usedStorage: 0,
+      userCount: 1
+    });
+    
+    // 🔥 FIX 3: Update user with company ID
+    user.company = company._id;
+    await user.save();
+    
     console.log('✅ User created successfully:', user._id);
+    console.log('✅ Company created successfully:', company._id);
     
     // Generate token
     const token = jwt.sign(
-      { id: user._id.toString(), role: user.role },
+      { 
+        id: user._id.toString(), 
+        role: user.role, 
+        company: company._id.toString() 
+      },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -93,17 +110,21 @@ export const register = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        company: company._id,
+        companyName: company.name,
         permissions: user.permissions
+      },
+      company: {
+        _id: company._id,
+        name: company.name,
+        totalStorage: company.totalStorage,
+        usedStorage: company.usedStorage,
+        availableStorage: company.totalStorage - company.usedStorage
       },
       token
     });
   } catch (error) {
-    console.error('❌ Registration error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code,
-      name: error.name
-    });
+    console.error('❌ Registration error:', error.message);
     
     // Handle duplicate key error
     if (error.code === 11000) {
@@ -136,48 +157,41 @@ export const login = async (req, res) => {
     
     const { email, password } = req.body;
     
-    // Validate required fields
     if (!email || !password) {
-      console.log('❌ Missing email or password');
       return res.status(400).json({ error: 'Please provide email and password' });
     }
 
-    // Check if JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
-      console.error('❌ JWT_SECRET is not defined in environment variables');
+      console.error('❌ JWT_SECRET is not defined');
       return res.status(500).json({ 
-        error: 'Server configuration error - contact administrator' 
+        error: 'Server configuration error' 
       });
     }
     
-    // Check if user exists - MUST include password field for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email })
+      .select('+password')
+      .populate('company');
     
     if (!user) {
-      console.log('❌ User not found:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    console.log('✅ User found:', user._id);
-    
-    // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
-      console.log('❌ Invalid password for user:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    console.log('✅ Password valid');
-    
-    // Generate token
     const token = jwt.sign(
-      { id: user._id.toString(), role: user.role },
+      { 
+        id: user._id.toString(), 
+        role: user.role, 
+        company: user.company?._id.toString() 
+      },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
-    // Remove password from response
     const userResponse = user.toObject();
     delete userResponse.password;
     
@@ -188,16 +202,14 @@ export const login = async (req, res) => {
         username: userResponse.username,
         email: userResponse.email,
         role: userResponse.role,
+        company: userResponse.company?._id,
+        companyName: userResponse.company?.name,
         permissions: userResponse.permissions
       },
       token
     });
   } catch (error) {
-    console.error('❌ Login error details:', {
-      message: error.message,
-      stack: error.stack
-    });
-    
+    console.error('❌ Login error:', error.message);
     res.status(500).json({ 
       error: 'Login failed. Please try again.' 
     });
@@ -209,10 +221,14 @@ export const login = async (req, res) => {
 // @access  Private
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('company', 'name totalStorage usedStorage');
+    
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+    
     res.json(user);
   } catch (error) {
     console.error('❌ Get profile error:', error);

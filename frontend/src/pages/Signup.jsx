@@ -1,12 +1,12 @@
-// frontend/src/pages/Signup.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../redux/slices/authSlice';
 import { authAPI } from '../redux/api/api';
+import SocialLoginButtons from '../components/SocailLoginButtons';
 import { RiCloudLine } from 'react-icons/ri';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
-import { FaMoon, FaSun } from 'react-icons/fa';
+import { IoSunny, IoMoon } from 'react-icons/io5';
 import { useTheme } from '../context/ThemeContext';
 
 const Signup = () => {
@@ -61,21 +61,12 @@ const Signup = () => {
   };
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'dark' : ''} bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-200`}>
-      {/* Dark Mode Toggle - Top Right Corner */}
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4 transition-colors duration-200">
       <button
         onClick={toggleDarkMode}
-        className="fixed top-4 right-4 p-3 rounded-lg bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-200 group"
-        aria-label="Toggle dark mode"
+        className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 z-50"
       >
-        {darkMode ? (
-          <FaSun className="w-5 h-5 text-yellow-500" />
-        ) : (
-          <FaMoon className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-        )}
-        <span className="absolute -bottom-8 right-0 px-2 py-1 text-xs font-medium text-white bg-gray-900 dark:bg-gray-700 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-          {darkMode ? 'Light Mode' : 'Dark Mode'}
-        </span>
+        {darkMode ? <IoSunny className="w-5 h-5 text-yellow-500" /> : <IoMoon className="w-5 h-5 text-gray-700" />}
       </button>
 
       <div className="w-full max-w-md">
@@ -87,7 +78,7 @@ const Signup = () => {
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
           {errors.submit && (
-            <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg text-sm">
+            <div className="mb-6 p-3 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg">
               {errors.submit}
             </div>
           )}
@@ -101,14 +92,12 @@ const Signup = () => {
                 type="text"
                 value={formData.username}
                 onChange={(e) => setFormData({...formData, username: e.target.value})}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
-                  errors.username ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                  errors.username ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Choose a username"
               />
-              {errors.username && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username}</p>
-              )}
+              {errors.username && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username}</p>}
             </div>
             
             <div>
@@ -119,14 +108,12 @@ const Signup = () => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${
-                  errors.email ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                  errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter your email"
               />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>
-              )}
+              {errors.email && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>}
             </div>
             
             <div>
@@ -138,8 +125,8 @@ const Signup = () => {
                   type={showPassword ? "text" : "password"}
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 ${
-                    errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                    errors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Create a password"
                 />
@@ -151,12 +138,8 @@ const Signup = () => {
                   {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>
-              )}
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Must be at least 6 characters
-              </p>
+              {errors.password && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>}
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Must be at least 6 characters</p>
             </div>
             
             <div>
@@ -168,8 +151,8 @@ const Signup = () => {
                   type={showConfirmPassword ? "text" : "password"}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 ${
-                    errors.confirmPassword ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                    errors.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Confirm your password"
                 />
@@ -181,36 +164,28 @@ const Signup = () => {
                   {showConfirmPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
                 </button>
               </div>
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>
-              )}
+              {errors.confirmPassword && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>}
             </div>
             
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-medium py-3 px-4 rounded-lg transition-colors mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50 transition-colors mt-6"
             >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creating Account...
-                </span>
-              ) : 'Create Account'}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
-            
-            <div className="text-center pt-4">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Already have an account?{' '}
-                <Link to="/login" className="text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium">
-                  Sign in
-                </Link>
-              </p>
-            </div>
           </form>
+
+          <SocialLoginButtons mode="signup" />
+
+          <div className="text-center mt-6">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Already have an account?{' '}
+              <Link to="/login" className="text-orange-600 dark:text-orange-400 hover:underline font-medium">
+                Sign in
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

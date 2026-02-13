@@ -3,23 +3,27 @@ import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 console.log('✅ DNS: IPv4 first order SET');
 
-// ===== NOW load other modules =====
+// ===== IMPORT MODULES =====
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import session from 'express-session';
+import passport from 'passport';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import permissionsRoutes from './routes/permission.js';
+import companyRoutes from './routes/companyRoutes.js';
+import './config/passport.js'; // Import passport config
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables - ONLY ONCE
+// ===== LOAD ENVIRONMENT VARIABLES =====
 dotenv.config();
 
 if (!process.env.JWT_SECRET) {
@@ -31,12 +35,27 @@ console.log('✅ Environment variables loaded');
 console.log('🔑 JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set');
 console.log('📁 NODE_ENV:', process.env.NODE_ENV || 'development');
 
-// Connect to database
+// ===== CONNECT TO DATABASE =====
 connectDB();
 
-const app = express();
+// ===== CREATE EXPRESS APP =====
+const app = express(); // 👈 THIS MUST COME FIRST
 
-// SIMPLIFIED CORS configuration - this is the key fix
+// ===== SESSION & PASSPORT MIDDLEWARE (AFTER app creation) =====
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ===== CORS CONFIGURATION =====
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -46,7 +65,6 @@ const allowedOrigins = [
   'http://127.0.0.1:5173'
 ];
 
-// Use CORS middleware WITHOUT the explicit app.options
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, etc)
@@ -64,21 +82,22 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// REMOVE the app.options('*') line completely - it's causing the error
-// The cors middleware already handles OPTIONS requests automatically
-
+// ===== BODY PARSING MIDDLEWARE =====
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ===== STATIC FILES =====
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Routes
+// ===== ROUTES =====
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionsRoutes);
+app.use('/api/companies', companyRoutes);
 
-// Test endpoints
+// ===== TEST ENDPOINTS =====
 app.get('/api/test', (req, res) => {
   res.json({
     status: 'OK',
@@ -98,12 +117,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 handler
+// ===== 404 HANDLER =====
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Error handler
+// ===== ERROR HANDLER =====
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.message);
   console.error('📚 Stack:', err.stack);
@@ -114,6 +133,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// ===== START SERVER =====
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
