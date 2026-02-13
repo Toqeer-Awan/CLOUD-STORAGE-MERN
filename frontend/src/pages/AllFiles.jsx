@@ -32,7 +32,8 @@ const AllFiles = () => {
         type: file.mimetype,
         storageUrl: file.storageUrl,
         uploadedAt: file.uploadDate,
-        uploadedBy: file.uploadedBy
+        uploadedBy: file.uploadedBy,
+        uploadedById: file.uploadedBy?._id || file.uploadedBy
       }));
       dispatch(setFiles(formattedFiles));
       toast.success('Files refreshed');
@@ -43,21 +44,30 @@ const AllFiles = () => {
     }
   };
 
+  // ✅ FIXED: Handle delete with proper error handling
   const handleDeleteFile = async (fileId) => {
+    if (!fileId) return;
+    
     const file = files.find(f => f._id === fileId || f.id === fileId);
     if (!file) return;
+    
+    if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
+      return;
+    }
     
     const loadingToast = toast.loading(`Deleting ${file.name}...`);
     
     try {
       await fileAPI.deleteFile(fileId);
-      dispatch(removeFile(fileId));
       toast.dismiss(loadingToast);
+      dispatch(removeFile(fileId));
       toast.deleteSuccess('File deleted successfully');
-      fetchFiles();
+      fetchFiles(); // Refresh the list
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error('Failed to delete file');
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to delete file';
+      toast.error(errorMessage);
+      console.error('Delete error:', error.response?.data || error);
     }
   };
 

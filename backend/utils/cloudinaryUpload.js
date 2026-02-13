@@ -35,15 +35,23 @@ export const uploadToCloudinary = async (filePath) => {
   }
 };
 
-// ADD DELETE FUNCTION
 export const deleteFromCloudinary = async (publicId) => {
   try {
-    console.log(`🗑️  Deleting ${publicId} from Cloudinary...`);
+    if (!publicId) {
+      throw new Error('publicId is required');
+    }
+    
+    console.log(`🗑️ Deleting ${publicId} from Cloudinary...`);
     
     const result = await cloudinary.uploader.destroy(publicId);
     
     console.log('✅ Cloudinary delete result:', result);
-    return result;
+    
+    if (result.result === 'ok') {
+      return { success: true, message: 'File deleted from Cloudinary' };
+    } else {
+      throw new Error(`Cloudinary delete failed: ${result.result}`);
+    }
     
   } catch (error) {
     console.error('❌ Cloudinary delete error:', error.message);

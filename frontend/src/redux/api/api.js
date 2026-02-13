@@ -33,7 +33,6 @@ API.interceptors.response.use(
   },
   error => {
     if (error.response) {
-      // The request was made and the server responded with a status code
       console.error('❌ Response error:', {
         status: error.response.status,
         data: error.response.data,
@@ -47,10 +46,8 @@ API.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (error.request) {
-      // The request was made but no response was received
       console.error('❌ No response received:', error.request);
     } else {
-      // Something happened in setting up the request that triggered an Error
       console.error('❌ Request setup error:', error.message);
     }
     
@@ -88,7 +85,7 @@ export const fileAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     }),
-  deleteFile: id => API.delete(`/files/${id}`),
+  deleteFile: id => API.delete(`/files/${id}`), // ✅ This is correct
 };
 
 export const companyAPI = {
@@ -98,4 +95,5 @@ export const companyAPI = {
   updateCompanyStorage: (id, data) => API.put(`/companies/${id}/storage`, data),
   deleteCompany: (id) => API.delete(`/companies/${id}`),
 };
+
 export default API;

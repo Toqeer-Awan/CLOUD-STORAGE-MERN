@@ -26,16 +26,25 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
     return 'Other';
   };
 
+  // ✅ FIXED: Check if user can delete file
   const canDeleteFile = (file) => {
     if (!user) return false;
-    const isOwner = file.uploadedById === user?._id || file.uploadedBy?._id === user?._id;
+    
+    // Admin can delete anything
     if (user?.role === 'admin') return true;
-    if (user?.permissions?.delete) return true;
-    return false;
+    
+    // Check if user has delete permission
+    if (user?.permissions?.delete === true) return true;
+    
+    // Check if user owns the file
+    const fileUserId = file.uploadedBy?._id || file.uploadedById || file.uploadedBy;
+    const isOwner = fileUserId === user?._id;
+    
+    return isOwner;
   };
 
-  const canDownload = user?.role === 'admin' || user?.permissions?.download;
-  const canView = user?.role === 'admin' || user?.permissions?.view;
+  const canDownload = user?.role === 'admin' || user?.permissions?.download === true;
+  const canView = user?.role === 'admin' || user?.permissions?.view === true;
 
   const handleDownload = async (file) => {
     if (!canDownload) {
@@ -103,6 +112,7 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
           {files.map((file, index) => {
             const fileId = file.id || file._id || `${file.name}-${index}`;
             const userCanDelete = canDeleteFile(file);
+            
             return (
               <tr key={fileId} className="hover:bg-gray-50">
                 <td className="py-3 px-4">
@@ -158,16 +168,25 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
                     >
                       {!canDownload ? <><MdLock /> Locked</> : <><MdDownload /> Download</>}
                     </button>
+                    
+                    {/* ✅ FIXED: Delete button */}
                     {userCanDelete ? (
                       <button
                         onClick={() => onRemoveFile?.(fileId)}
                         disabled={isUploading || downloadingId === fileId}
-                        className="text-red-600 hover:bg-red-50 p-1.5 rounded-full"
+                        className="text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
+                        title="Delete file"
                       >
                         <MdDelete className="text-xl" />
                       </button>
                     ) : (
-                      <MdLock className="text-gray-400 text-xl" />
+                      <button
+                        disabled
+                        className="text-gray-400 p-1.5 rounded-full cursor-not-allowed"
+                        title="No permission to delete"
+                      >
+                        <MdLock className="text-xl" />
+                      </button>
                     )}
                   </div>
                 </td>
