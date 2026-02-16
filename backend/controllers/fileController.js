@@ -1,107 +1,43 @@
 import File from "../models/File.js";
 import Company from "../models/Company.js";
-import {
-  uploadToCloudinary,
-  deleteFromCloudinary,
-} from "../utils/cloudinaryUpload.js";
+import User from "../models/User.js";
 import { uploadToS3, deleteFromS3 } from "../utils/s3Upload.js";
 import fs from "fs";
 
+// @desc    Get user's own files ONLY
+// @route   GET /api/files
+// @access  Private
 export const getFiles = async (req, res) => {
   try {
-    let files;
+    console.log('📁 Get files - User:', {
+      userId: req.user.id,
+      role: req.user.role,
+      company: req.user.company
+    });
 
-    if (req.user.role === "admin") {
-      files = await File.find()
-        .populate("uploadedBy", "username email role")
-        .populate("company", "name");
-    } else {
-      files = await File.find({ company: req.user.company })
-        .populate("uploadedBy", "username email role")
-        .populate("company", "name")
-        .sort({ uploadDate: -1 });
-    }
-
+    // 🔥 CRITICAL: Everyone can ONLY see their own files
+    const files = await File.find({ 
+      uploadedBy: req.user.id  // Only files uploaded by this user
+    })
+      .populate("uploadedBy", "username email role")
+      .populate("company", "name")
+      .sort({ uploadDate: -1 });
+    
+    console.log(`✅ User ${req.user.id} found ${files.length} of their own files`);
     res.json(files);
   } catch (error) {
-    console.error("Get files error:", error);
+    console.error("❌ Get files error:", error);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-export const uploadToCloudinaryHandler = async (req, res) => {
-  try {
-    if (!req.user.permissions?.upload && req.user.role !== 'admin') {
-      return res.status(403).json({ 
-        error: 'Access denied',
-        message: 'You do not have permission to upload files'
-      });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-
-    const file = req.file;
-    console.log("Uploading file to Cloudinary:", file.originalname);
-
-    const company = await Company.findById(req.user.company);
-    const files = await File.find({ company: company._id });
-    const totalStorageUsed = files.reduce((acc, f) => acc + f.size, 0);
-    
-    if (totalStorageUsed + file.size > company.totalStorage) {
-      return res.status(400).json({
-        error: "Storage limit exceeded",
-        message: `Cannot upload. Company storage limit: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(2)}GB`
-      });
-    }
-
-    const cloudinaryResult = await uploadToCloudinary(file.path);
-
-    const cloudinaryFile = await File.create({
-      filename: file.originalname,
-      originalName: file.originalname,
-      size: file.size,
-      mimetype: file.mimetype,
-      storageType: "cloudinary",
-      storageUrl: cloudinaryResult.url,
-      downloadUrl: cloudinaryResult.url.replace(
-        "/upload/",
-        "/upload/fl_attachment/",
-      ),
-      publicId: cloudinaryResult.publicId,
-      uploadedBy: req.user.id,
-      company: req.user.company,
-    });
-
-    company.usedStorage = totalStorageUsed + file.size;
-    await company.save();
-
-    if (fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
-
-    res.status(201).json({
-      message: "File uploaded to Cloudinary successfully",
-      file: cloudinaryFile,
-    });
-  } catch (error) {
-    console.error("Cloudinary upload error:", error);
-
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    res.status(500).json({
-      error: "Cloudinary upload failed",
-      details: error.message,
-    });
-  }
-};
-
+// @desc    Upload file to S3
+// @route   POST /api/files/upload/s3
+// @access  Private
 export const uploadToS3Handler = async (req, res) => {
   try {
-    if (!req.user.permissions?.upload && req.user.role !== 'admin') {
+    // Check upload permission
+    if (!req.user.permissions?.upload) {
       return res.status(403).json({ 
         error: 'Access denied',
         message: 'You do not have permission to upload files'
@@ -113,8 +49,9 @@ export const uploadToS3Handler = async (req, res) => {
     }
 
     const file = req.file;
-    console.log("Uploading file to S3:", file.originalname);
+    console.log("📤 Uploading file to S3:", file.originalname);
 
+    // Check AWS configuration
     if (
       !process.env.AWS_ACCESS_KEY_ID ||
       process.env.AWS_ACCESS_KEY_ID === "your_access_key_id"
@@ -125,23 +62,38 @@ export const uploadToS3Handler = async (req, res) => {
       });
     }
 
-    const company = await Company.findById(req.user.company);
-    const files = await File.find({ company: company._id });
-    const totalStorageUsed = files.reduce((acc, f) => acc + f.size, 0);
+    // Check user's allocated storage
+    const user = await User.findById(req.user.id);
+    const userFiles = await File.find({ uploadedBy: user._id });
+    const userStorageUsed = userFiles.reduce((acc, f) => acc + f.size, 0);
     
-    if (totalStorageUsed + file.size > company.totalStorage) {
+    if (userStorageUsed + file.size > user.storageAllocated) {
       return res.status(400).json({
         error: "Storage limit exceeded",
-        message: `Cannot upload. Company storage limit: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(2)}GB`
+        message: `You have used ${(userStorageUsed / (1024 * 1024 * 1024)).toFixed(2)}GB of ${(user.storageAllocated / (1024 * 1024 * 1024)).toFixed(2)}GB`
       });
     }
 
+    // Check company storage
+    const company = await Company.findById(req.user.company);
+    const companyFiles = await File.find({ company: company._id });
+    const companyStorageUsed = companyFiles.reduce((acc, f) => acc + f.size, 0);
+    
+    if (companyStorageUsed + file.size > company.totalStorage) {
+      return res.status(400).json({
+        error: "Company storage limit exceeded",
+        message: `Company storage limit: ${(company.totalStorage / (1024 * 1024 * 1024)).toFixed(2)}GB`
+      });
+    }
+
+    // Upload to S3
     const s3Url = await uploadToS3(file.path, file.originalname);
 
     const timestamp = Date.now();
     const safeFileName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
     const s3Key = `cloud-storage/${timestamp}-${safeFileName}`;
 
+    // Save file record in database
     const s3File = await File.create({
       filename: file.originalname,
       originalName: file.originalname,
@@ -155,20 +107,28 @@ export const uploadToS3Handler = async (req, res) => {
       company: req.user.company,
     });
 
-    company.usedStorage = totalStorageUsed + file.size;
+    // Update storage usage
+    company.usedStorage = companyStorageUsed + file.size;
     await company.save();
+    
+    user.storageUsed = userStorageUsed + file.size;
+    await user.save();
 
+    // Clean up temporary file
     if (fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
     }
+
+    console.log("✅ File uploaded successfully:", s3File._id);
 
     res.status(201).json({
       message: "File uploaded to S3 successfully",
       file: s3File,
     });
   } catch (error) {
-    console.error("S3 upload error:", error);
+    console.error("❌ S3 upload error:", error);
 
+    // Clean up temporary file on error
     if (req.file?.path && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
@@ -180,7 +140,9 @@ export const uploadToS3Handler = async (req, res) => {
   }
 };
 
-// ✅ FIXED DELETE FUNCTION
+// @desc    Delete user's own file ONLY
+// @route   DELETE /api/files/:id
+// @access  Private
 export const deleteFile = async (req, res) => {
   try {
     const file = await File.findById(req.params.id);
@@ -192,109 +154,74 @@ export const deleteFile = async (req, res) => {
       });
     }
 
-    console.log("Delete attempt - User:", {
+    console.log('🗑️ Delete attempt - User:', {
       userId: req.user.id,
-      userRole: req.user.role,
-      userCompany: req.user.company?.toString(),
-      permissions: req.user.permissions
+      userRole: req.user.role
     });
 
-    console.log("Delete attempt - File:", {
+    console.log('🗑️ Delete attempt - File:', {
       fileId: file._id,
       fileName: file.originalName,
-      uploadedBy: file.uploadedBy.toString(),
-      fileCompany: file.company?.toString(),
-      storageType: file.storageType
+      uploadedBy: file.uploadedBy.toString()
     });
 
-    // Check permissions
+    // 🔥 CRITICAL: Check if user owns this file
     const isOwner = file.uploadedBy.toString() === req.user.id;
-    const isAdmin = req.user.role === 'admin';
-    const hasDeletePermission = req.user.permissions?.delete === true;
     
-    console.log("Permission check:", {
-      isOwner,
-      isAdmin,
-      hasDeletePermission
-    });
-
-    // Allow if:
-    // 1. User is admin
-    // 2. User has delete permission AND file belongs to user's company
-    // 3. User owns the file AND file belongs to user's company
-    if (isAdmin) {
-      // Admin can delete anything
-      console.log("✅ Admin delete permission granted");
-    } 
-    else if (hasDeletePermission && file.company.toString() === req.user.company.toString()) {
-      // User has delete permission and file is in their company
-      console.log("✅ Delete permission granted (has permission + same company)");
-    }
-    else if (isOwner && file.company.toString() === req.user.company.toString()) {
-      // User owns the file and it's in their company
-      console.log("✅ Delete permission granted (owner + same company)");
-    }
-    else {
-      console.log("❌ Delete permission denied");
+    if (!isOwner) {
+      console.log("❌ Delete permission denied - not file owner");
       return res.status(403).json({ 
         success: false,
         error: "Access denied",
-        message: "You do not have permission to delete this file"
+        message: "You can only delete your own files"
       });
     }
 
-    // Delete from storage based on type
-    if (file.storageType === "cloudinary") {
-      if (!file.publicId) {
-        console.error("No publicId found for Cloudinary file");
-        return res.status(400).json({
-          success: false,
-          error: "Invalid file data: missing publicId"
-        });
-      }
-      
-      console.log(`Deleting from Cloudinary, publicId: ${file.publicId}`);
-      const result = await deleteFromCloudinary(file.publicId);
-      console.log("Cloudinary delete result:", result);
-    }
+    console.log("✅ Delete permission granted - user owns this file");
 
+    // Delete from S3
     if (file.storageType === "s3") {
       if (!file.s3Key) {
-        console.error("No s3Key found for S3 file");
+        console.error("❌ No s3Key found for S3 file");
         return res.status(400).json({
           success: false,
           error: "Invalid file data: missing s3Key"
         });
       }
       
-      console.log(`Deleting from S3, key: ${file.s3Key}`);
-      const result = await deleteFromS3(file.s3Key);
-      console.log("S3 delete result:", result);
+      console.log(`🗑️ Deleting from S3, key: ${file.s3Key}`);
+      await deleteFromS3(file.s3Key);
     }
 
     // Delete from database
     await File.findByIdAndDelete(req.params.id);
 
-    // Update company used storage
+    // Update user storage
+    const user = await User.findById(file.uploadedBy);
+    if (user) {
+      const userFiles = await File.find({ uploadedBy: user._id });
+      const userStorageUsed = userFiles.reduce((acc, f) => acc + f.size, 0);
+      user.storageUsed = userStorageUsed;
+      await user.save();
+    }
+
+    // Update company storage
     const company = await Company.findById(file.company);
     if (company) {
       const companyFiles = await File.find({ company: company._id });
-      const totalStorageUsed = companyFiles.reduce((acc, f) => acc + f.size, 0);
-      company.usedStorage = totalStorageUsed;
+      const companyStorageUsed = companyFiles.reduce((acc, f) => acc + f.size, 0);
+      company.usedStorage = companyStorageUsed;
       await company.save();
-      console.log(`✅ Updated company storage: ${totalStorageUsed} bytes`);
     }
 
-    console.log("✅ File deleted successfully from database");
+    console.log("✅ File deleted successfully");
 
     res.json({
       success: true,
-      message: "File deleted successfully from storage and database",
+      message: "File deleted successfully",
     });
   } catch (error) {
     console.error("❌ Delete file error:", error.message);
-    console.error("Error stack:", error.stack);
-    
     res.status(500).json({
       success: false,
       error: "Failed to delete file",

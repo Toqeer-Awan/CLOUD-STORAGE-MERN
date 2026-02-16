@@ -1,4 +1,3 @@
-// backend/controllers/companyController.js
 import Company from '../models/Company.js';
 import User from '../models/User.js';
 import File from '../models/File.js';
@@ -15,16 +14,19 @@ export const getAllCompanies = async (req, res) => {
     // Get user count and storage usage for each company
     const companiesWithStats = await Promise.all(
       companies.map(async (company) => {
-        const users = await User.find({ company: company._id }).select('username email role createdAt');
+        const users = await User.find({ company: company._id }).select('username email role createdAt storageAllocated storageUsed');
         const files = await File.find({ company: company._id });
         const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
+        const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
         
         return {
           ...company.toObject(),
           users,
           totalFiles: files.length,
           storageUsed: totalStorageUsed,
-          storagePercentage: ((totalStorageUsed / company.totalStorage) * 100).toFixed(2)
+          allocatedToUsers: totalAllocated,
+          storagePercentage: ((totalStorageUsed / company.totalStorage) * 100).toFixed(2),
+          allocationPercentage: ((totalAllocated / company.totalStorage) * 100).toFixed(2)
         };
       })
     );
@@ -60,13 +62,16 @@ export const getCompanyById = async (req, res) => {
       .limit(50);
 
     const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
+    const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
 
     res.json({
       ...company.toObject(),
       users,
       files,
       storageUsed: totalStorageUsed,
-      storagePercentage: ((totalStorageUsed / company.totalStorage) * 100).toFixed(2)
+      allocatedToUsers: totalAllocated,
+      storagePercentage: ((totalStorageUsed / company.totalStorage) * 100).toFixed(2),
+      allocationPercentage: ((totalAllocated / company.totalStorage) * 100).toFixed(2)
     });
   } catch (error) {
     console.error('Get company error:', error);
@@ -100,7 +105,8 @@ export const updateCompanyStorage = async (req, res) => {
         _id: company._id,
         name: company.name,
         totalStorage: company.totalStorage,
-        usedStorage: company.usedStorage
+        usedStorage: company.usedStorage,
+        allocatedToUsers: company.allocatedToUsers
       }
     });
   } catch (error) {
@@ -131,12 +137,33 @@ export const getMyCompany = async (req, res) => {
       .limit(20);
 
     const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
+    const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
+    
+    // 🔥 FIX: Ensure admin user shows correct allocated storage
+    const usersWithCorrectStorage = users.map(user => {
+      // If user is admin, their storage should match company total
+      if (user.role === 'admin') {
+        return {
+          ...user.toObject(),
+          storageAllocated: company.totalStorage, // Force admin storage to match company
+          storageUsed: user.storageUsed || 0
+        };
+      }
+      return {
+        ...user.toObject(),
+        storageAllocated: user.storageAllocated || 0,
+        storageUsed: user.storageUsed || 0
+      };
+    });
+    
+    // Calculate storage by user
     const storageByUser = {};
     
-    users.forEach(user => {
+    usersWithCorrectStorage.forEach(user => {
       storageByUser[user._id] = {
         username: user.username,
         email: user.email,
+        storageAllocated: user.storageAllocated,
         storageUsed: 0,
         fileCount: 0
       };
@@ -151,15 +178,18 @@ export const getMyCompany = async (req, res) => {
 
     res.json({
       ...company.toObject(),
-      users: users.map(user => ({
-        ...user.toObject(),
+      users: usersWithCorrectStorage.map(user => ({
+        ...user,
         storageUsed: storageByUser[user._id]?.storageUsed || 0,
         fileCount: storageByUser[user._id]?.fileCount || 0
       })),
       recentFiles: files,
       storageUsed: totalStorageUsed,
+      allocatedToUsers: totalAllocated,
       storagePercentage: ((totalStorageUsed / company.totalStorage) * 100).toFixed(2),
-      availableStorage: company.totalStorage - totalStorageUsed
+      allocationPercentage: ((totalAllocated / company.totalStorage) * 100).toFixed(2),
+      availableStorage: company.totalStorage - totalStorageUsed,
+      unallocatedStorage: company.totalStorage - totalAllocated
     });
   } catch (error) {
     console.error('Get my company error:', error);

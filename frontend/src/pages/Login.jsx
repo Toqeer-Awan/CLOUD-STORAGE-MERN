@@ -26,8 +26,14 @@ const Login = () => {
     try {
       const response = await authAPI.login(formData);
       dispatch(setCredentials(response.data));
-      toast.loginSuccess('Welcome back! Login successful');
-      navigate('/');
+      toast.success(`Welcome back, ${response.data.user.username}!`);
+      
+      // Redirect based on role
+      if (response.data.user.role === 'superAdmin') {
+        navigate('/admin/companies');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Login failed');
     } finally {
@@ -39,7 +45,7 @@ const Login = () => {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center p-4">
       <button
         onClick={toggleDarkMode}
-        className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg"
+        className="fixed top-6 right-6 p-3 rounded-full bg-white dark:bg-gray-800 shadow-lg z-10"
       >
         {darkMode ? <IoSunny className="w-5 h-5 text-yellow-500" /> : <IoMoon className="w-5 h-5 text-gray-700" />}
       </button>
@@ -48,6 +54,7 @@ const Login = () => {
         <div className="text-center mb-8">
           <RiCloudLine className="text-orange-500 text-5xl mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Welcome Back</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Sign in to your account</p>
         </div>
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
@@ -61,7 +68,7 @@ const Login = () => {
                 value={formData.email}
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
                 required
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 placeholder="Enter your email"
               />
             </div>
@@ -76,13 +83,13 @@ const Login = () => {
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
                   required
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 pr-12"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-12 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="Enter your password"
                 />
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400"
                 >
                   {showPassword ? <AiOutlineEyeInvisible size={20} /> : <AiOutlineEye size={20} />}
                 </button>
@@ -92,7 +99,7 @@ const Login = () => {
             <button 
               type="submit" 
               disabled={loading} 
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>

@@ -24,7 +24,9 @@ const roleSchema = new mongoose.Schema({
     addUser: { type: Boolean, default: false },
     removeUser: { type: Boolean, default: false },
     changeRole: { type: Boolean, default: false },
-    manageFiles: { type: Boolean, default: false }
+    manageFiles: { type: Boolean, default: false },
+    manageStorage: { type: Boolean, default: false },
+    assignStorage: { type: Boolean, default: false }
   },
   permissionIds: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -37,18 +39,8 @@ const roleSchema = new mongoose.Schema({
   priority: {
     type: Number,
     default: 999
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
   }
-});
-
-// NO PRE-SAVE HOOK AT ALL - completely remove it
+}, { timestamps: true });
 
 const Role = mongoose.model('Role', roleSchema);
 export default Role;

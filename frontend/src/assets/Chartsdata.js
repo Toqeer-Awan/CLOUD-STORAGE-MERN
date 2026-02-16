@@ -1,15 +1,16 @@
-export const chartData = [
+// This file now exports an empty template - data will be populated dynamically
+export const chartDataTemplate = [
   {
     id: 1,
     title: "Storage Usage",
     description: "Distribution of used storage by file type",
     chartData: {
-      labels: ['Images', 'Documents', 'Videos', 'PDFs', 'Others'],
+      labels: [],
       datasets: [
         {
-          label: 'Storage (GB)',
-          data: [12, 19, 3, 5, 2],
-          backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+          label: 'Storage (MB)',
+          data: [],
+          backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'],
           borderWidth: 1,
         },
       ],
@@ -17,15 +18,15 @@ export const chartData = [
   },
   {
     id: 2,
-    title: "User Activity",
-    description: "Upload activity by user role",
+    title: "Files by Type",
+    description: "Number of files by category",
     chartData: {
-      labels: ['Admins', 'Users', 'Guests'],
+      labels: [],
       datasets: [
         {
-          label: 'Uploads Count',
-          data: [42, 30, 10],
-          backgroundColor: ['#FF9F40', '#FF6384', '#36A2EB'],
+          label: 'File Count',
+          data: [],
+          backgroundColor: ['#FF9F40', '#FF6384', '#36A2EB', '#4BC0C0', '#9966FF'],
           borderWidth: 1,
         },
       ],

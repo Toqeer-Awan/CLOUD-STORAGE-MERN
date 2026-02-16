@@ -1,4 +1,3 @@
-// frontend/src/redux/api/api.js
 import axios from 'axios';
 
 const API = axios.create({
@@ -16,84 +15,87 @@ API.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log(`🚀 ${config.method.toUpperCase()} ${config.baseURL}${config.url}`, config.data || '');
+    console.log(`🚀 ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
-  error => {
-    console.error('Request error:', error);
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
 // Response interceptor
 API.interceptors.response.use(
-  response => {
-    console.log(`✅ ${response.config.method.toUpperCase()} ${response.config.url} - Status: ${response.status}`);
-    return response;
-  },
+  response => response,
   error => {
-    if (error.response) {
-      console.error('❌ Response error:', {
-        status: error.response.status,
-        data: error.response.data,
-        url: error.config?.url,
-        method: error.config?.method
-      });
-      
-      if (error.response.status === 401) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      }
-    } else if (error.request) {
-      console.error('❌ No response received:', error.request);
-    } else {
-      console.error('❌ Request setup error:', error.message);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
     }
-    
     return Promise.reject(error);
   }
 );
 
+// Auth APIs
 export const authAPI = {
-  register: userData => API.post('/auth/register', userData),
-  login: credentials => API.post('/auth/login', credentials),
+  register: (userData) => API.post('/auth/register', userData),
+  login: (credentials) => API.post('/auth/login', credentials),
+  getProfile: () => API.get('/auth/profile'),
+  logout: () => API.post('/auth/logout'),
+  
+  // Social Login
+  googleLogin: (access_token) => API.post('/auth/google', { access_token }),
+  facebookLogin: (access_token) => API.post('/auth/facebook', { access_token }),
+  microsoftLogin: (access_token) => API.post('/auth/microsoft', { access_token }),
 };
 
+// User APIs
 export const userAPI = {
   getAllUsers: () => API.get('/users'),
   getCompanyUsers: (companyId) => API.get(`/users/company/${companyId}`),
-  createUser: userData => API.post('/users', userData),
+  createUser: (userData) => API.post('/users', userData),
   updateRole: (id, roleData) => API.put(`/users/${id}/role`, roleData),
-  deleteUser: id => API.delete(`/users/${id}`),
+  deleteUser: (id) => API.delete(`/users/${id}`),
   getPermissions: () => API.get('/users/permissions/me'),
   getAllPermissions: () => API.get('/users/permissions'),
   updatePermissions: (data) => API.put('/users/permissions', data),
   deleteCustomRole: (roleName) => API.delete(`/users/permissions/role/${roleName}`),
 };
 
+// File APIs
 export const fileAPI = {
+  // Get current user's files only
   getAllFiles: () => API.get('/files'),
-  getCompanyFiles: (companyId) => API.get(`/files/company/${companyId}`),
-  uploadToCloudinary: (formData, onUploadProgress) =>
-    API.post('/files/upload/cloudinary', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress,
-    }),
+  
+  // Upload file to S3
   uploadToS3: (formData, onUploadProgress) =>
     API.post('/files/upload/s3', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress,
     }),
-  deleteFile: id => API.delete(`/files/${id}`), // ✅ This is correct
+  
+  // Delete user's own file
+  deleteFile: (id) => API.delete(`/files/${id}`),
 };
 
+// Company APIs
 export const companyAPI = {
   getAllCompanies: () => API.get('/companies'),
   getMyCompany: () => API.get('/companies/me'),
   getCompanyById: (id) => API.get(`/companies/${id}`),
   updateCompanyStorage: (id, data) => API.put(`/companies/${id}/storage`, data),
   deleteCompany: (id) => API.delete(`/companies/${id}`),
+};
+
+// 🔥 NEW: Storage Management APIs
+export const storageAPI = {
+  // SuperAdmin allocates storage to company
+  allocateToCompany: (data) => API.post('/storage/allocate-to-company', data),
+  
+  // Admin allocates storage to user
+  allocateToUser: (data) => API.post('/storage/allocate-to-user', data),
+  
+  // Get storage usage
+  getUserStorage: (userId) => API.get(`/storage/user/${userId}`),
+  getCompanyStorage: (companyId) => API.get(`/storage/company/${companyId}`),
 };
 
 export default API;

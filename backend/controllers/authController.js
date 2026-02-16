@@ -1,10 +1,9 @@
-// backend/controllers/authController.js
 import User from '../models/User.js';
 import Company from '../models/Company.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
-// @desc    Register a new user (creates their own company)
+// @desc    Register a new user
 // @route   POST /api/auth/register
 // @access  Public
 export const register = async (req, res) => {
@@ -16,129 +15,106 @@ export const register = async (req, res) => {
     
     const { username, email, password } = req.body;
     
-    // Validate required fields
     if (!username || !email || !password) {
       return res.status(400).json({ 
         error: 'Please provide username, email and password' 
       });
     }
 
-    // Validate email format
     const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ error: 'Please provide a valid email address' });
     }
 
-    // Validate password length
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long' });
     }
 
-    // Check if JWT_SECRET is configured
     if (!process.env.JWT_SECRET) {
-      console.error('❌ JWT_SECRET is not defined in environment variables');
+      console.error('❌ JWT_SECRET is not defined');
       return res.status(500).json({ 
         error: 'Server configuration error - contact administrator' 
       });
     }
     
-    // Check if user exists
     const userExists = await User.findOne({ email });
     if (userExists) {
       console.log('❌ User already exists:', email);
       return res.status(400).json({ error: 'User already exists' });
     }
     
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // 🔥 FIX 1: Create user FIRST with temporary company ID (null)
+    const userCount = await User.countDocuments();
+    let role = userCount === 0 ? 'superAdmin' : 'admin';
+    
     const user = await User.create({
       username,
       email,
       password: hashedPassword,
-      role: 'user',
-      company: null, // Temporary, will update after company creation
+      role: role,
+      company: null,
       addedBy: null,
-      permissions: {
-        view: true,
-        upload: true,
-        download: true,
-        delete: true,
-        addUser: true,
-        removeUser: true,
-        changeRole: false,
-        manageFiles: true,
-        manageStorage: false
-      }
+      storageAllocated: role === 'superAdmin' ? 0 : 5 * 1024 * 1024 * 1024,
+      storageUsed: 0
     });
     
-    // 🔥 FIX 2: Create company with owner set to user ID
-    const companyName = `${username.toLowerCase().replace(/\s+/g, '_')}_company`;
+    let company = null;
+    if (role === 'admin') {
+      const companyName = `${username}'s Company`;
+      
+      company = await Company.create({
+        name: companyName,
+        owner: user._id,
+        totalStorage: 5 * 1024 * 1024 * 1024,
+        usedStorage: 0,
+        allocatedToUsers: 0,
+        userCount: 1,
+        createdBy: null
+      });
+      
+      user.company = company._id;
+      await user.save();
+    }
     
-    const company = await Company.create({
-      name: companyName,
-      owner: user._id, // Set owner immediately
-      totalStorage: 5 * 1024 * 1024 * 1024, // 5GB default
-      usedStorage: 0,
-      userCount: 1
-    });
+    console.log(`✅ ${role} created successfully:`, user._id);
     
-    // 🔥 FIX 3: Update user with company ID
-    user.company = company._id;
-    await user.save();
-    
-    console.log('✅ User created successfully:', user._id);
-    console.log('✅ Company created successfully:', company._id);
-    
-    // Generate token
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: company._id.toString() 
+        company: company?._id?.toString() || null 
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
+    const userResponse = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      company: company?._id || null,
+      companyName: company?.name || null,
+      permissions: user.permissions,
+      storageAllocated: user.storageAllocated,
+      storageUsed: user.storageUsed
+    };
+    
     res.status(201).json({
       message: 'User registered successfully',
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        company: company._id,
-        companyName: company.name,
-        permissions: user.permissions
-      },
-      company: {
-        _id: company._id,
-        name: company.name,
-        totalStorage: company.totalStorage,
-        usedStorage: company.usedStorage,
-        availableStorage: company.totalStorage - company.usedStorage
-      },
+      user: userResponse,
+      company: company,
       token
     });
   } catch (error) {
     console.error('❌ Registration error:', error.message);
     
-    // Handle duplicate key error
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(400).json({ 
         error: `${field} already exists` 
-      });
-    }
-    
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(val => val.message);
-      return res.status(400).json({ 
-        error: messages.join(', ') 
       });
     }
     
@@ -173,12 +149,14 @@ export const login = async (req, res) => {
       .populate('company');
     
     if (!user) {
+      console.log('❌ User not found:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
+      console.log('❌ Invalid password for:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
@@ -186,26 +164,31 @@ export const login = async (req, res) => {
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: user.company?._id.toString() 
+        company: user.company?._id?.toString() || null 
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    const userResponse = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      company: user.company?._id || null,
+      companyName: user.company?.name || null,
+      permissions: user.permissions,
+      storageAllocated: user.storageAllocated || 0,
+      storageUsed: user.storageUsed || 0,
+      avatar: user.avatar,
+      authProvider: user.authProvider
+    };
+    
+    console.log('✅ Login successful for:', email, 'Role:', user.role);
     
     res.json({
       message: 'Login successful',
-      user: {
-        _id: userResponse._id,
-        username: userResponse.username,
-        email: userResponse.email,
-        role: userResponse.role,
-        company: userResponse.company?._id,
-        companyName: userResponse.company?.name,
-        permissions: userResponse.permissions
-      },
+      user: userResponse,
       token
     });
   } catch (error) {
@@ -223,13 +206,29 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select('-password')
-      .populate('company', 'name totalStorage usedStorage');
+      .populate('company', 'name totalStorage usedStorage allocatedToUsers');
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    res.json(user);
+    res.json({
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      company: user.company ? {
+        _id: user.company._id,
+        name: user.company.name,
+        totalStorage: user.company.totalStorage,
+        usedStorage: user.company.usedStorage,
+        allocatedToUsers: user.company.allocatedToUsers
+      } : null,
+      permissions: user.permissions,
+      storageAllocated: user.storageAllocated,
+      storageUsed: user.storageUsed,
+      createdAt: user.createdAt
+    });
   } catch (error) {
     console.error('❌ Get profile error:', error);
     res.status(500).json({ error: 'Server error' });

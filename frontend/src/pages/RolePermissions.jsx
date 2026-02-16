@@ -1,40 +1,95 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI } from '../redux/api/api';
-import { MdAccessTime, MdCalendarToday, MdUpdate, MdPerson } from 'react-icons/md';
+import useToast from '../hooks/useToast';
+import { 
+  MdSecurity, MdSave, MdAdd, MdDelete, 
+  MdAdminPanelSettings, MdPerson, 
+  MdVisibility, MdUpload, MdDownload, 
+  MdPersonAdd, MdPersonRemove, MdSwitchAccount, MdFolder,
+  MdStorage, MdAssignment, MdClose, MdCheck,
+  MdVerifiedUser
+} from 'react-icons/md';
 
 const RolesPermissions = () => {
-  const [roles, setRoles] = useState({
-    admin: {
-      view: true, upload: true, download: true, delete: true,
-      addUser: true, removeUser: true, changeRole: true, manageFiles: true
-    },
-    moderator: {
-      view: true, upload: true, download: true, delete: true,
-      addUser: false, removeUser: false, changeRole: false, manageFiles: true
-    },
-    user: {
-      view: true, upload: true, download: true, delete: false,
-      addUser: false, removeUser: false, changeRole: false, manageFiles: false
-    }
-  });
-
+  const [roles, setRoles] = useState({});
   const [customRoles, setCustomRoles] = useState([]);
-  const [roleTimestamps, setRoleTimestamps] = useState({
-    admin: { createdAt: null, updatedAt: null, permissionsUpdatedAt: null },
-    moderator: { createdAt: null, updatedAt: null, permissionsUpdatedAt: null },
-    user: { createdAt: null, updatedAt: null, permissionsUpdatedAt: null }
-  });
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [newRoleName, setNewRoleName] = useState('');
-  const [newPermissionName, setNewPermissionName] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [viewMode, setViewMode] = useState('table');
+  const toast = useToast();
 
-  const defaultPermissions = [
-    'view', 'upload', 'download', 'delete', 
-    'addUser', 'removeUser', 'changeRole', 'manageFiles'
-  ];
+  const permissionCategories = {
+    files: {
+      title: 'File Permissions',
+      icon: MdFolder,
+      permissions: ['view', 'upload', 'download', 'delete', 'manageFiles']
+    },
+    users: {
+      title: 'User Management',
+      icon: MdPerson,
+      permissions: ['addUser', 'removeUser', 'changeRole']
+    },
+    storage: {
+      title: 'Storage Management',
+      icon: MdStorage,
+      permissions: ['manageStorage', 'assignStorage']
+    }
+  };
+
+  const permissionIcons = {
+    view: MdVisibility,
+    upload: MdUpload,
+    download: MdDownload,
+    delete: MdDelete,
+    manageFiles: MdFolder,
+    addUser: MdPersonAdd,
+    removeUser: MdPersonRemove,
+    changeRole: MdSwitchAccount,
+    manageStorage: MdStorage,
+    assignStorage: MdAssignment
+  };
+
+  const permissionLabels = {
+    view: 'View Files',
+    upload: 'Upload Files',
+    download: 'Download Files',
+    delete: 'Delete Files',
+    manageFiles: 'Manage All Files',
+    addUser: 'Add Users',
+    removeUser: 'Remove Users',
+    changeRole: 'Change User Roles',
+    manageStorage: 'Manage Storage',
+    assignStorage: 'Assign Storage to Users'
+  };
+
+  const formatRoleName = (roleName) => {
+    return roleName
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase());
+  };
+
+  const getRoleIcon = (role) => {
+    if (role === 'superAdmin') return <MdVerifiedUser className="text-purple-500 dark:text-purple-400" size={20} />;
+    if (role === 'admin') return <MdAdminPanelSettings className="text-red-500 dark:text-red-400" size={20} />;
+    if (role === 'user') return <MdPerson className="text-green-500 dark:text-green-400" size={20} />;
+    return <MdSecurity className="text-blue-500 dark:text-blue-400" size={20} />;
+  };
+
+  const getRoleBadgeColor = (role) => {
+    if (role === 'superAdmin') return 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 border-purple-200 dark:border-purple-800';
+    if (role === 'admin') return 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-400 border-red-200 dark:border-red-800';
+    if (role === 'user') return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800';
+    return 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+  };
+
+  const formatPermission = (permission) => {
+    return permissionLabels[permission] || permission
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .replace(/_/g, ' ');
+  };
 
   useEffect(() => {
     fetchPermissions();
@@ -42,52 +97,31 @@ const RolesPermissions = () => {
 
   const fetchPermissions = async () => {
     try {
+      setInitialLoading(true);
       const response = await userAPI.getAllPermissions();
+      console.log('API Response:', response.data);
+      
       if (response.data) {
-        const { roles: backendRoles, customRoles: backendCustomRoles, roleTimestamps: backendTimestamps } = response.data;
-        
-        setRoles({
-          admin: backendRoles.admin || roles.admin,
-          moderator: backendRoles.moderator || roles.moderator,
-          user: backendRoles.user || roles.user,
-        });
-        
-        if (backendTimestamps) {
-          setRoleTimestamps(backendTimestamps);
+        // Set default roles
+        if (response.data.roles) {
+          setRoles(response.data.roles);
         }
         
-        if (backendCustomRoles) {
-          setCustomRoles(backendCustomRoles);
+        // Set custom roles
+        if (response.data.customRoles && Array.isArray(response.data.customRoles)) {
+          setCustomRoles(response.data.customRoles);
         }
       }
     } catch (err) {
       console.error('Failed to load permissions:', err);
+      toast.error('Failed to load permissions');
+    } finally {
+      setInitialLoading(false);
     }
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Never';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-      year: 'numeric', month: 'short', day: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  };
-
-  const timeAgo = (dateString) => {
-    if (!dateString) return 'Never';
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now - date) / 1000);
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-    if (seconds < 2592000) return `${Math.floor(seconds / 86400)} days ago`;
-    return formatDate(dateString);
-  };
-
   const togglePermission = (role, permission) => {
-    if (['admin', 'moderator', 'user'].includes(role)) {
+    if (roles.hasOwnProperty(role)) {
       setRoles(prev => ({
         ...prev,
         [role]: {
@@ -99,7 +133,13 @@ const RolesPermissions = () => {
       setCustomRoles(prev =>
         prev.map(r =>
           r.name === role
-            ? { ...r, permissions: { ...r.permissions, [permission]: !r.permissions[permission] } }
+            ? { 
+                ...r, 
+                permissions: { 
+                  ...r.permissions, 
+                  [permission]: !r.permissions[permission] 
+                } 
+              }
             : r
         )
       );
@@ -112,11 +152,34 @@ const RolesPermissions = () => {
     setSuccess('');
 
     try {
-      const response = await userAPI.updatePermissions({ roles, customRoles });
-      setSuccess(`✅ Permissions saved successfully at ${new Date().toLocaleTimeString()}`);
-      setTimeout(() => fetchPermissions(), 1000);
+      const payload = { 
+        roles, 
+        customRoles: customRoles.map(role => ({
+          name: role.name,
+          displayName: role.displayName || role.name,
+          permissions: role.permissions,
+          isCustom: true
+        }))
+      };
+      
+      console.log('Saving permissions:', payload);
+      
+      // Send to backend
+      const response = await userAPI.updatePermissions(payload);
+      
+      console.log('Save response:', response.data);
+      
+      setSuccess('Permissions saved successfully');
+      toast.success('Permissions updated');
+      
+      // Fetch fresh data from backend
+      await fetchPermissions();
+      
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      console.error('Save error:', err);
       setError(err.response?.data?.error || 'Failed to save permissions');
+      toast.error('Failed to save permissions');
     } finally {
       setLoading(false);
     }
@@ -130,27 +193,25 @@ const RolesPermissions = () => {
 
     const roleName = newRoleName.toLowerCase().replace(/\s+/g, '_');
 
-    if (['admin', 'moderator', 'user'].includes(roleName)) {
-      setError('Cannot create default role');
-      return;
-    }
-
-    if (customRoles.find(r => r.name === roleName)) {
+    // Check if role already exists
+    if (roles.hasOwnProperty(roleName) || customRoles.find(r => r.name === roleName)) {
       setError('Role already exists');
       return;
     }
 
-    const permissionsObj = {};
-    defaultPermissions.forEach(perm => {
-      permissionsObj[perm] = false;
+    // Create permissions object with all permissions set to false
+    const permissions = {};
+    Object.values(permissionCategories).forEach(category => {
+      category.permissions.forEach(perm => {
+        permissions[perm] = false;
+      });
     });
 
     const newRole = {
       name: roleName,
       displayName: newRoleName,
-      permissions: permissionsObj,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      permissions,
+      isCustom: true
     };
 
     setCustomRoles(prev => [...prev, newRole]);
@@ -160,53 +221,9 @@ const RolesPermissions = () => {
     setTimeout(() => setSuccess(''), 3000);
   };
 
-  const handleAddPermission = () => {
-    if (!newPermissionName.trim()) {
-      setError('Permission name is required');
-      return;
-    }
-
-    const permKey = newPermissionName.toLowerCase().replace(/\s+/g, '_');
-
-    if (defaultPermissions.includes(permKey)) {
-      setError('Permission already exists');
-      return;
-    }
-
-    const allRolesCombined = { ...roles };
-    customRoles.forEach(cr => {
-      allRolesCombined[cr.name] = cr.permissions;
-    });
-
-    for (const roleName in allRolesCombined) {
-      if (allRolesCombined[roleName][permKey] !== undefined) {
-        setError('Permission already exists in some role');
-        return;
-      }
-    }
-
-    setRoles(prev => ({
-      ...prev,
-      admin: { ...prev.admin, [permKey]: true },
-      moderator: { ...prev.moderator, [permKey]: false },
-      user: { ...prev.user, [permKey]: false }
-    }));
-
-    setCustomRoles(prev =>
-      prev.map(role => ({
-        ...role,
-        permissions: { ...role.permissions, [permKey]: false }
-      }))
-    );
-
-    setNewPermissionName('');
-    setError('');
-    setSuccess(`Permission "${newPermissionName}" added`);
-    setTimeout(() => setSuccess(''), 3000);
-  };
-
   const handleDeleteRole = async (roleName) => {
-    if (['admin', 'moderator', 'user'].includes(roleName)) {
+    // Check if it's a default role
+    if (roles.hasOwnProperty(roleName)) {
       setError('Cannot delete default roles');
       return;
     }
@@ -215,308 +232,183 @@ const RolesPermissions = () => {
       await userAPI.deleteCustomRole(roleName);
       setCustomRoles(prev => prev.filter(r => r.name !== roleName));
       setSuccess(`Role "${roleName}" deleted`);
+      toast.success('Role deleted');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
+      console.error('Delete error:', err);
       setError('Failed to delete role');
+      toast.error('Failed to delete role');
     }
   };
 
-  const getAllPermissions = () => {
-    const allPermissions = new Set();
-    defaultPermissions.forEach(p => allPermissions.add(p));
-    Object.values(roles).forEach(rolePerms => {
-      Object.keys(rolePerms).forEach(p => allPermissions.add(p));
-    });
-    customRoles.forEach(cr => {
-      Object.keys(cr.permissions).forEach(p => allPermissions.add(p));
-    });
-    return Array.from(allPermissions).sort();
-  };
+  // Create lists for display with unique IDs
+  const defaultRolesList = Object.keys(roles).map(roleName => ({
+    id: `default-${roleName}`,
+    name: roleName,
+    displayName: formatRoleName(roleName),
+    isCustom: false,
+    permissions: roles[roleName]
+  }));
 
-  const getPermissionValue = (role, permission) => {
-    if (['admin', 'moderator', 'user'].includes(role)) {
-      return !!roles[role]?.[permission];
-    }
-    const customRole = customRoles.find(r => r.name === role);
-    return !!customRole?.permissions?.[permission];
-  };
+  const customRolesList = customRoles.map((role, index) => ({
+    id: `custom-${role.name}-${index}`,
+    name: role.name,
+    displayName: role.displayName || role.name,
+    isCustom: true,
+    permissions: role.permissions
+  }));
 
-  const formatPermission = (permission) => {
-    return permission.replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .replace(/_/g, ' ');
-  };
+  const allRoles = [...defaultRolesList, ...customRolesList];
 
-  const allRoles = [...['admin', 'moderator', 'user'], ...customRoles.map(r => r.name)];
-  const allPermissionsList = getAllPermissions();
+  if (initialLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 dark:border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800">Roles & Permissions</h2>
-              <p className="text-gray-600 text-sm mt-1">Manage user permissions with timestamps</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-4 py-2 rounded-lg ${viewMode === 'table' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
-              >
-                Table View
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`px-4 py-2 rounded-lg ${viewMode === 'list' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
-              >
-                List View
-              </button>
-            </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+            <MdSecurity className="text-orange-600 dark:text-orange-400 text-2xl" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-1">Roles & Permissions</h1>
+            <p className="text-gray-500 dark:text-gray-400">Manage user roles and permissions</p>
           </div>
         </div>
+      </div>
 
-        {error && (
-          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">{error}</div>
-        )}
-        {success && (
-          <div className="mx-6 mt-4 p-3 bg-green-50 border border-green-200 text-green-600 rounded-lg text-sm">{success}</div>
-        )}
-
-        <div className="p-6 border-b border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Add New Role</h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="Enter role name"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-                <button
-                  onClick={handleAddRole}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Add Role
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Example: editor, manager, viewer</p>
-            </div>
-
-            <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Add New Permission</h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newPermissionName}
-                  onChange={(e) => setNewPermissionName(e.target.value)}
-                  placeholder="Enter permission name"
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                />
-                <button
-                  onClick={handleAddPermission}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  Add Permission
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">Example: export_data, view_reports</p>
-            </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">Create New Custom Role</h2>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <input
+              type="text"
+              value={newRoleName}
+              onChange={(e) => setNewRoleName(e.target.value)}
+              placeholder="Enter role name (e.g., Editor, Viewer, Manager)"
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
           </div>
+          <button
+            onClick={handleAddRole}
+            className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            <MdAdd size={20} />
+            Add Role
+          </button>
         </div>
+      </div>
 
-        {viewMode === 'table' ? (
-          <div className="p-6">
-            <div className="overflow-x-auto border border-gray-200 rounded-lg">
-              <table className="min-w-full">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">Permission</th>
-                    {allRoles.map(role => {
-                      const isCustom = !['admin', 'moderator', 'user'].includes(role);
-                      const roleData = isCustom 
-                        ? customRoles.find(r => r.name === role)
-                        : roleTimestamps[role];
-                      
-                      return (
-                        <th key={role} className="py-3 px-4 text-center text-sm font-medium text-gray-700">
-                          <div className="flex flex-col items-center">
-                            <span className="capitalize font-semibold">{role.replace(/_/g, ' ')}</span>
-                            <div className="mt-1 space-y-1">
-                              {roleData?.updatedAt && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1">
-                                  <MdUpdate className="w-3 h-3" />
-                                  {timeAgo(roleData.updatedAt)}
-                                </div>
-                              )}
-                              {isCustom && (
-                                <button
-                                  onClick={() => handleDeleteRole(role)}
-                                  className="mt-1 text-xs text-red-600 hover:text-red-800"
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {allPermissionsList.map(permission => (
-                    <tr key={permission} className="hover:bg-gray-50">
-                      <td className="py-3 px-4">
-                        <span className="text-sm font-medium text-gray-700">{formatPermission(permission)}</span>
-                      </td>
-                      {allRoles.map(role => (
-                        <td key={role} className="py-3 px-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={getPermissionValue(role, permission)}
-                            onChange={() => togglePermission(role, permission)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-4 rounded-lg flex items-center gap-2">
+          <MdClose className="text-lg" />
+          {error}
+        </div>
+      )}
+      
+      {success && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 p-4 rounded-lg flex items-center gap-2">
+          <MdCheck className="text-lg" />
+          {success}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {allRoles.map((role) => (
+          <div key={role.id} className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-100 dark:border-gray-700">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    role.name === 'superAdmin' ? 'bg-purple-100 dark:bg-purple-900/30' :
+                    role.name === 'admin' ? 'bg-red-100 dark:bg-red-900/30' :
+                    role.name === 'user' ? 'bg-green-100 dark:bg-green-900/30' :
+                    'bg-blue-100 dark:bg-blue-900/30'
+                  }`}>
+                    {getRoleIcon(role.name)}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      {role.displayName}
+                    </h3>
+                    <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full border ${getRoleBadgeColor(role.name)}`}>
+                      {role.isCustom ? 'Custom Role' : 'Default Role'}
+                    </span>
+                  </div>
+                </div>
+                {role.isCustom && (
+                  <button
+                    onClick={() => handleDeleteRole(role.name)}
+                    className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="Delete Role"
+                  >
+                    <MdDelete size={20} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allRoles.map(role => {
-                const isCustom = !['admin', 'moderator', 'user'].includes(role);
-                const rolePermissions = isCustom 
-                  ? customRoles.find(r => r.name === role)?.permissions || {}
-                  : roles[role];
-                const roleData = isCustom 
-                  ? customRoles.find(r => r.name === role)
-                  : roleTimestamps[role];
-                
+
+            <div className="p-4 space-y-4">
+              {Object.entries(permissionCategories).map(([key, category]) => {
+                const Icon = category.icon;
+                const rolePermissions = role.permissions;
+
                 return (
-                  <div key={role} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-800 capitalize">
-                          {role.replace(/_/g, ' ')}
-                          <span className={`ml-2 text-xs px-2 py-1 rounded ${isCustom ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
-                            {isCustom ? 'Custom' : 'Default'}
-                          </span>
-                        </h3>
-                        <div className="mt-2 space-y-1">
-                          {roleData?.createdAt && (
-                            <div className="text-xs text-gray-600 flex items-center gap-1">
-                              <MdCalendarToday className="w-3 h-3" />
-                              Created: {formatDate(roleData.createdAt)}
-                            </div>
-                          )}
-                          {roleData?.updatedAt && (
-                            <div className="text-xs text-gray-600 flex items-center gap-1">
-                              <MdUpdate className="w-3 h-3" />
-                              Updated: {timeAgo(roleData.updatedAt)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {isCustom && (
-                        <button
-                          onClick={() => handleDeleteRole(role)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Delete
-                        </button>
-                      )}
+                  <div key={`${role.id}-${key}`} className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <Icon className="text-gray-500 dark:text-gray-400" size={16} />
+                      <span>{category.title}</span>
                     </div>
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                      {Object.entries(rolePermissions).map(([perm, value]) => (
-                        <div key={perm} className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700">{formatPermission(perm)}</span>
-                          <input
-                            type="checkbox"
-                            checked={value}
-                            onChange={() => togglePermission(role, perm)}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                          />
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {category.permissions.map(permission => {
+                        const PermissionIcon = permissionIcons[permission] || MdSecurity;
+                        return (
+                          <label
+                            key={`${role.id}-${permission}`}
+                            className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <PermissionIcon className="text-gray-500 dark:text-gray-400" size={14} />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {formatPermission(permission)}
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="checkbox"
+                                checked={rolePermissions?.[permission] || false}
+                                onChange={() => togglePermission(role.name, permission)}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-gray-200 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-orange-600 dark:peer-checked:bg-orange-500"></div>
+                            </div>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
-
-        <div className="p-6 border-t border-gray-200 bg-gray-50">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-600">
-                Total: {allRoles.length} roles • {allPermissionsList.length} permissions
-              </p>
-              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                <MdAccessTime className="w-3 h-3" />
-                Last save will update all timestamps
-              </p>
-            </div>
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
+        ))}
       </div>
 
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-          <MdAccessTime className="text-blue-500" />
-          Activity Timeline
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">Default Roles</h4>
-            {['admin', 'moderator', 'user'].map(role => (
-              <div key={role} className="mb-2">
-                <p className="text-sm font-medium text-gray-800 capitalize">{role}</p>
-                {roleTimestamps[role]?.updatedAt && (
-                  <p className="text-xs text-gray-600">Updated: {timeAgo(roleTimestamps[role].updatedAt)}</p>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h4 className="font-medium text-green-800 mb-2">Custom Roles</h4>
-            {customRoles.length === 0 ? (
-              <p className="text-sm text-gray-600">No custom roles</p>
-            ) : (
-              customRoles.slice(0, 3).map(role => (
-                <div key={role.name} className="mb-2">
-                  <p className="text-sm font-medium text-gray-800 capitalize">{role.displayName}</p>
-                  <p className="text-xs text-gray-600">Created: {timeAgo(role.createdAt)}</p>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <h4 className="font-medium text-purple-800 mb-2">System Status</h4>
-            <div className="space-y-2">
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">Total Permissions:</span> {allPermissionsList.length}
-              </p>
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">Last Fetch:</span> {new Date().toLocaleTimeString()}
-              </p>
-            </div>
-          </div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="px-8 py-3 bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            <MdSave size={20} />
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
         </div>
       </div>
     </div>

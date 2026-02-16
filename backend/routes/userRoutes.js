@@ -8,7 +8,8 @@ import {
   getAllRolesPermissions,
   updateAllRolesPermissions,
   getUserPermissions,
-  deleteCustomRole
+  deleteCustomRole,
+  syncAdminStorage  // 🔥 NEW
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -17,6 +18,9 @@ router.use(protect);
 
 // Get current user permissions
 router.get('/permissions/me', getUserPermissions);
+
+// 🔥 Sync admin storage with company storage
+router.post('/sync-admin-storage/:companyId', admin, syncAdminStorage);
 
 // Admin routes
 router.get('/', admin, getAllUsers);

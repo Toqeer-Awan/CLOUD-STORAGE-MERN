@@ -1,4 +1,3 @@
-// backend/middleware/auth.js
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
@@ -16,6 +15,7 @@ export const protect = async (req, res, next) => {
     
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
       const user = await User.findById(decoded.id)
         .select('-password')
         .populate('company');
@@ -37,17 +37,17 @@ export const protect = async (req, res, next) => {
 };
 
 export const admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'superAdmin')) {
     next();
   } else {
     return res.status(403).json({ error: 'Not authorized as admin' });
   }
 };
 
-export const companyOwner = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.permissions?.addUser)) {
+export const superAdmin = (req, res, next) => {
+  if (req.user && req.user.role === 'superAdmin') {
     next();
   } else {
-    return res.status(403).json({ error: 'Not authorized as company owner' });
+    return res.status(403).json({ error: 'Not authorized as super admin' });
   }
 };

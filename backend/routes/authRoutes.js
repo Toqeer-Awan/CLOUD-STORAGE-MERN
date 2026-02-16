@@ -16,16 +16,15 @@ router.get('/profile', protect, getProfile);
 
 // ==================== GOOGLE OAUTH ====================
 
-// Google OAuth redirect route (for traditional OAuth flow)
+// Google OAuth redirect route
 router.get('/google', passport.authenticate('google', { 
   scope: ['profile', 'email'] 
 }));
 
-// Google OAuth callback route (for traditional OAuth flow)
+// Google OAuth callback route
 router.get('/google/callback', 
   passport.authenticate('google', { session: false, failureRedirect: '/login' }),
   (req, res) => {
-    // Generate JWT token
     const token = jwt.sign(
       { 
         id: req.user._id.toString(), 
@@ -36,13 +35,12 @@ router.get('/google/callback',
       { expiresIn: '30d' }
     );
     
-    // Redirect to frontend with token
     const userData = encodeURIComponent(JSON.stringify(req.user));
     res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/oauth-callback?token=${token}&user=${userData}`);
   }
 );
 
-// Google OAuth token endpoint (for frontend token-based login)
+// Google OAuth token endpoint
 router.post('/google', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -55,6 +53,8 @@ router.post('/google', async (req, res) => {
     const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${access_token}`);
     
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Google API error:', errorData);
       return res.status(401).json({ error: 'Invalid Google token' });
     }
     
@@ -64,54 +64,60 @@ router.post('/google', async (req, res) => {
       return res.status(400).json({ error: 'Failed to get user email from Google' });
     }
     
-    // Find or create user
+    console.log('Google profile:', { email: profile.email, name: profile.name });
+    
+    // Check if user already exists
     let user = await User.findOne({ email: profile.email }).populate('company');
     
     if (!user) {
-      // Create new user and company
-      const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || `user_${Date.now()}`;
+      console.log('Creating new user from Google login');
       
-      // Create company first
-      const company = await Company.create({
-        name: `${username}_company`,
-        owner: null, // Will set after user creation
-        totalStorage: 5 * 1024 * 1024 * 1024, // 5GB
-        usedStorage: 0,
-        userCount: 1
-      });
+      const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || 
+                      profile.email.split('@')[0];
       
-      // Set permissions for new user
-      const permissions = {
-        view: true, 
-        upload: true, 
-        download: true, 
-        delete: true,
-        addUser: true, 
-        removeUser: true, 
-        changeRole: false,
-        manageFiles: true, 
-        manageStorage: false
-      };
+      // Check if this is first user (make superAdmin)
+      const userCount = await User.countDocuments();
+      const role = userCount === 0 ? 'superAdmin' : 'admin';
       
-      // Create user
+      // 🔥 FIX: Create user FIRST (with null company)
       user = await User.create({
         username: username,
         email: profile.email,
-        password: await bcrypt.hash(Math.random().toString(36), 10), // Random password
-        role: 'user',
-        company: company._id,
+        password: await bcrypt.hash(Math.random().toString(36), 10),
+        role: role,
+        company: null,  // Temporary null
         authProvider: 'google',
         authProviderId: profile.sub,
         avatar: profile.picture,
-        permissions: permissions
+        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        storageUsed: 0
       });
       
-      // Update company with owner
-      company.owner = user._id;
-      await company.save();
+      console.log('✅ User created with ID:', user._id);
       
-      // Populate company for response
-      user = await User.findById(user._id).populate('company');
+      // Only create company for admin users (not superAdmin)
+      if (role === 'admin') {
+        console.log('Creating company for admin user...');
+        
+        // Create company with owner set to user ID
+        const company = await Company.create({
+          name: `${username}'s Company`,
+          owner: user._id,  // Now user._id exists
+          totalStorage: 5 * 1024 * 1024 * 1024,
+          usedStorage: 0,
+          allocatedToUsers: 0,
+          userCount: 1
+        });
+        
+        console.log('✅ Company created with ID:', company._id);
+        
+        // Update user with company ID
+        user.company = company._id;
+        await user.save();
+        
+        // Populate company for response
+        user = await User.findById(user._id).populate('company');
+      }
     }
     
     // Generate JWT
@@ -119,24 +125,27 @@ router.post('/google', async (req, res) => {
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: user.company?._id?.toString() 
+        company: user.company?._id?.toString() || null 
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
-    // Prepare user response (remove sensitive data)
     const userResponse = {
       _id: user._id,
       username: user.username,
       email: user.email,
       role: user.role,
-      company: user.company?._id,
-      companyName: user.company?.name,
+      company: user.company?._id || null,
+      companyName: user.company?.name || null,
       permissions: user.permissions,
       avatar: user.avatar,
-      authProvider: user.authProvider
+      authProvider: user.authProvider,
+      storageAllocated: user.storageAllocated,
+      storageUsed: user.storageUsed
     };
+    
+    console.log('✅ Google login successful for:', profile.email);
     
     res.json({
       token,
@@ -144,8 +153,8 @@ router.post('/google', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Google auth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
+    console.error('❌ Google auth error:', error);
+    res.status(500).json({ error: 'Authentication failed: ' + error.message });
   }
 });
 
@@ -175,7 +184,7 @@ router.get('/facebook/callback',
   }
 );
 
-// Facebook OAuth token endpoint (for frontend token-based login)
+// Facebook OAuth token endpoint
 router.post('/facebook', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -197,47 +206,55 @@ router.post('/facebook', async (req, res) => {
       return res.status(400).json({ error: 'Failed to get user email from Facebook. Please make sure your Facebook email is verified.' });
     }
     
-    // Find or create user
+    console.log('Facebook profile:', { email: profile.email, name: profile.name });
+    
+    // Check if user already exists
     let user = await User.findOne({ email: profile.email }).populate('company');
     
     if (!user) {
-      // Create new user and company
-      const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || `user_${Date.now()}`;
+      console.log('Creating new user from Facebook login');
       
-      // Create company
-      const company = await Company.create({
-        name: `${username}_company`,
-        owner: null,
-        totalStorage: 5 * 1024 * 1024 * 1024,
-        usedStorage: 0,
-        userCount: 1
-      });
+      const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || 
+                      profile.email.split('@')[0];
       
-      // Set permissions
-      const permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: false,
-        manageFiles: true, manageStorage: false
-      };
+      const userCount = await User.countDocuments();
+      const role = userCount === 0 ? 'superAdmin' : 'admin';
       
-      // Create user
+      // 🔥 FIX: Create user FIRST
       user = await User.create({
         username: username,
         email: profile.email,
         password: await bcrypt.hash(Math.random().toString(36), 10),
-        role: 'user',
-        company: company._id,
+        role: role,
+        company: null,
         authProvider: 'facebook',
         authProviderId: profile.id,
         avatar: profile.picture?.data?.url,
-        permissions: permissions
+        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        storageUsed: 0
       });
       
-      // Update company with owner
-      company.owner = user._id;
-      await company.save();
+      console.log('✅ User created with ID:', user._id);
       
-      user = await User.findById(user._id).populate('company');
+      // Create company for admin
+      if (role === 'admin') {
+        console.log('Creating company for admin user...');
+        
+        const company = await Company.create({
+          name: `${username}'s Company`,
+          owner: user._id,
+          totalStorage: 5 * 1024 * 1024 * 1024,
+          usedStorage: 0,
+          allocatedToUsers: 0,
+          userCount: 1
+        });
+        
+        console.log('✅ Company created with ID:', company._id);
+        
+        user.company = company._id;
+        await user.save();
+        user = await User.findById(user._id).populate('company');
+      }
     }
     
     // Generate JWT
@@ -260,8 +277,12 @@ router.post('/facebook', async (req, res) => {
       companyName: user.company?.name,
       permissions: user.permissions,
       avatar: user.avatar,
-      authProvider: user.authProvider
+      authProvider: user.authProvider,
+      storageAllocated: user.storageAllocated,
+      storageUsed: user.storageUsed
     };
+    
+    console.log('✅ Facebook login successful for:', profile.email);
     
     res.json({
       token,
@@ -269,7 +290,7 @@ router.post('/facebook', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Facebook auth error:', error);
+    console.error('❌ Facebook auth error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });
@@ -300,7 +321,7 @@ router.get('/microsoft/callback',
   }
 );
 
-// Microsoft OAuth token endpoint (for frontend token-based login)
+// Microsoft OAuth token endpoint
 router.post('/microsoft', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -327,47 +348,55 @@ router.post('/microsoft', async (req, res) => {
       return res.status(400).json({ error: 'Failed to get user email from Microsoft' });
     }
     
-    // Find or create user
+    console.log('Microsoft profile:', { email, name: profile.displayName });
+    
+    // Check if user already exists
     let user = await User.findOne({ email }).populate('company');
     
     if (!user) {
-      // Create new user and company
-      const username = profile.displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${Date.now()}`;
+      console.log('Creating new user from Microsoft login');
       
-      // Create company
-      const company = await Company.create({
-        name: `${username}_company`,
-        owner: null,
-        totalStorage: 5 * 1024 * 1024 * 1024,
-        usedStorage: 0,
-        userCount: 1
-      });
+      const username = profile.displayName?.replace(/\s+/g, '_').toLowerCase() || 
+                      email.split('@')[0];
       
-      // Set permissions
-      const permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: false,
-        manageFiles: true, manageStorage: false
-      };
+      const userCount = await User.countDocuments();
+      const role = userCount === 0 ? 'superAdmin' : 'admin';
       
-      // Create user
+      // 🔥 FIX: Create user FIRST
       user = await User.create({
         username: username,
         email: email,
         password: await bcrypt.hash(Math.random().toString(36), 10),
-        role: 'user',
-        company: company._id,
+        role: role,
+        company: null,
         authProvider: 'microsoft',
         authProviderId: profile.id,
-        avatar: null, // Microsoft doesn't provide picture in basic profile
-        permissions: permissions
+        avatar: null,
+        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        storageUsed: 0
       });
       
-      // Update company with owner
-      company.owner = user._id;
-      await company.save();
+      console.log('✅ User created with ID:', user._id);
       
-      user = await User.findById(user._id).populate('company');
+      // Create company for admin
+      if (role === 'admin') {
+        console.log('Creating company for admin user...');
+        
+        const company = await Company.create({
+          name: `${username}'s Company`,
+          owner: user._id,
+          totalStorage: 5 * 1024 * 1024 * 1024,
+          usedStorage: 0,
+          allocatedToUsers: 0,
+          userCount: 1
+        });
+        
+        console.log('✅ Company created with ID:', company._id);
+        
+        user.company = company._id;
+        await user.save();
+        user = await User.findById(user._id).populate('company');
+      }
     }
     
     // Generate JWT
@@ -390,8 +419,12 @@ router.post('/microsoft', async (req, res) => {
       companyName: user.company?.name,
       permissions: user.permissions,
       avatar: user.avatar,
-      authProvider: user.authProvider
+      authProvider: user.authProvider,
+      storageAllocated: user.storageAllocated,
+      storageUsed: user.storageUsed
     };
+    
+    console.log('✅ Microsoft login successful for:', email);
     
     res.json({
       token,
@@ -399,7 +432,7 @@ router.post('/microsoft', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Microsoft auth error:', error);
+    console.error('❌ Microsoft auth error:', error);
     res.status(500).json({ error: 'Authentication failed' });
   }
 });

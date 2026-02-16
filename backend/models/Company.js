@@ -10,14 +10,18 @@ const companySchema = new mongoose.Schema({
   owner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: false
+    required: true
   },
   totalStorage: {
     type: Number,
-    default: 5 * 1024 * 1024 * 1024,
-    min: 100 * 1024 * 1024
+    default: 5 * 1024 * 1024 * 1024, // 5GB default
+    min: 100 * 1024 * 1024 // 100MB min
   },
   usedStorage: {
+    type: Number,
+    default: 0
+  },
+  allocatedToUsers: {
     type: Number,
     default: 0
   },
@@ -29,18 +33,14 @@ const companySchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
-});
+}, { timestamps: true });
 
-// 🔥 CORRECT: Async function, no next parameter
-companySchema.pre('save', async function() {
+// Update timestamps
+companySchema.pre('save', function() {
   this.updatedAt = Date.now();
 });
 

@@ -18,7 +18,8 @@ import fileRoutes from './routes/fileRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import permissionsRoutes from './routes/permission.js';
 import companyRoutes from './routes/companyRoutes.js';
-import './config/passport.js'; // Import passport config
+import storageRoutes from './routes/storageRoutes.js'; // 👈 NEW
+import './config/passport.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,9 +40,9 @@ console.log('📁 NODE_ENV:', process.env.NODE_ENV || 'development');
 connectDB();
 
 // ===== CREATE EXPRESS APP =====
-const app = express(); // 👈 THIS MUST COME FIRST
+const app = express();
 
-// ===== SESSION & PASSPORT MIDDLEWARE (AFTER app creation) =====
+// ===== SESSION & PASSPORT MIDDLEWARE =====
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-session-secret',
   resave: false,
@@ -67,9 +68,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, etc)
     if (!origin) return callback(null, true);
-    
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -96,6 +95,7 @@ app.use('/api/files', fileRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/companies', companyRoutes);
+app.use('/api/storage', storageRoutes); // 👈 NEW
 
 // ===== TEST ENDPOINTS =====
 app.get('/api/test', (req, res) => {
@@ -139,6 +139,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`🔗 API URL: http://localhost:${PORT}/api`);
-  console.log(`🌐 Frontend: http://localhost:3000`);
   console.log('☁️  Cloud Storage API Ready!\n');
 });

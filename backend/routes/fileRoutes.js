@@ -3,25 +3,28 @@ import { protect } from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
 import {
   getFiles,
-  uploadToCloudinaryHandler,
-  uploadToS3Handler, // Add this import
+  uploadToS3Handler,
   deleteFile
 } from '../controllers/fileController.js';
 
 const router = express.Router();
 
+// All routes require authentication
 router.use(protect);
 
-// Get all files
+// @route   GET /api/files
+// @desc    Get user's own files
+// @access  Private
 router.get('/', getFiles);
 
-// Upload to Cloudinary
-router.post('/upload/cloudinary', upload.single('file'), uploadToCloudinaryHandler);
+// @route   POST /api/files/upload/s3
+// @desc    Upload file to S3
+// @access  Private
+router.post('/upload/s3', upload.single('file'), uploadToS3Handler);
 
-// Upload to S3
-router.post('/upload/s3', upload.single('file'), uploadToS3Handler); // Add this route
-
-// Delete file
+// @route   DELETE /api/files/:id
+// @desc    Delete user's own file
+// @access  Private
 router.delete('/:id', deleteFile);
 
 export default router;

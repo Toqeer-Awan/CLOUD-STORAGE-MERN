@@ -1,187 +1,148 @@
-// frontend/src/layout/MainLayout.jsx
-import React, { useState } from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../redux/slices/authSlice";
-import { FaBars, FaTimes } from "react-icons/fa";
-import { 
-  MdDashboard, MdCloudUpload, MdFolder, MdLogout, 
-  MdAdd, MdList, MdLock,
-  MdBusiness, MdBusinessCenter 
-} from "react-icons/md";
-import { RiCloudLine } from "react-icons/ri";
-import { IoSunny, IoMoon } from "react-icons/io5";
-import { useTheme } from "../context/ThemeContext";
+import React, { useState } from 'react';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useSelector, useDispatch } from 'react-redux';
+import { logout } from '../redux/slices/authSlice';
+import useToast from '../hooks/useToast';
+import { useTheme } from '../context/ThemeContext';
+import {
+  MdDashboard, MdUpload, MdFolder, MdPeople,
+  MdBusiness, MdLogout, MdMenu,
+  MdClose, MdPersonAdd, MdList, MdSecurity,
+  MdStorage, MdDarkMode, MdLightMode
+} from 'react-icons/md';
 
 const MainLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const toast = useToast();
   const { darkMode, toggleDarkMode } = useTheme();
-
-  const pageTitles = {
-    "/": "Dashboard",
-    "/upload": "Upload Files",
-    "/files": "All Files",
-    "/users/add": "Add User",
-    "/users/list": "Users List",
-    "/roles": "Roles & Permissions",
-  };
-
-  const currentTitle = pageTitles[location.pathname] || "Dashboard";
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate("/login");
+    toast.success('Logged out successfully');
+    navigate('/login');
   };
 
-  const isAdmin = user?.role === "admin";
+  const isActive = (path) => {
+    return location.pathname === path;
+  };
 
-  const navigationItems = [
-    { path: "/", icon: <MdDashboard />, label: "Dashboard", show: true },
-    { path: "/upload", icon: <MdCloudUpload />, label: "Upload", show: true },
-    { path: "/files", icon: <MdFolder />, label: "All Files", show: true },
-    { path: "/company", icon: <MdBusiness />, label: "My Company", show: true }, // NEW
+  // 🔒 Menu items with role-based visibility - My Company removed from superAdmin
+  const menuItems = [
+    { path: '/', icon: MdDashboard, label: 'Dashboard', roles: ['superAdmin', 'admin', 'user'] },
+    { path: '/upload', icon: MdUpload, label: 'Upload Files', roles: ['admin', 'user'] },
+    { path: '/files', icon: MdFolder, label: 'All Files', roles: ['superAdmin', 'admin', 'user'] },
+    // 🔒 My Company - Only visible to admin (not superAdmin)
+    { path: '/company', icon: MdBusiness, label: 'My Company', roles: ['admin'] },
+    // 🔒 Add User - Visible to admin and superAdmin
+    { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin', 'superAdmin'] },
+    // 🔒 These are ONLY visible to superAdmin
+    { path: '/users/list', icon: MdList, label: 'User List', roles: ['superAdmin'] },
+    { path: '/roles', icon: MdSecurity, label: 'Roles & Permissions', roles: ['superAdmin'] },
+    { path: '/admin/companies', icon: MdStorage, label: 'Manage Companies', roles: ['superAdmin'] },
   ];
 
-
-  const adminItems = [
-    { path: "/users/add", icon: <MdAdd />, label: "Add User", show: isAdmin },
-    { path: "/users/list", icon: <MdList />, label: "Users List", show: isAdmin },
-    { path: "/roles", icon: <MdLock />, label: "Roles & Permissions", show: isAdmin },
-    { path: "/admin/companies", icon: <MdBusinessCenter />, label: "Companies", show: isAdmin }, // NEW
-  ];
+  // Filter menu items based on user role
+  const filteredMenu = menuItems.filter(item => 
+    item.roles.includes(user?.role)
+  );
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <div className="flex items-center justify-between h-16 px-4 bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700">
-          <div className="flex items-center space-x-3">
-            <RiCloudLine className="text-white text-2xl" />
-            <span className="text-xl font-bold text-white">Cloud Storage</span>
-          </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white hover:text-gray-200">
-            <FaTimes size={20} />
-          </button>
-        </div>
-        
-        <div className="px-4 py-6 space-y-2 bg-white dark:bg-gray-800 h-[calc(100vh-64px)] overflow-y-auto">
-          {navigationItems.map((item) => item.show && (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                location.pathname === item.path 
-                  ? "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" 
-                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-              onClick={() => setSidebarOpen(false)}
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 fixed h-full z-30`}>
+        <div className="h-full flex flex-col">
+          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
+            {sidebarOpen ? (
+              <span className="text-xl font-bold text-orange-600 dark:text-orange-500">
+                CloudStore
+              </span>
+            ) : (
+              <span className="text-2xl font-bold text-orange-600 dark:text-orange-500 mx-auto">C</span>
+            )}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
             >
-              {item.icon} <span>{item.label}</span>
-            </Link>
-          ))}
-          
-          {isAdmin && (
-            <>
-              <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
-                <p className="px-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Administration
-                </p>
+              {sidebarOpen ? <MdClose size={20} /> : <MdMenu size={20} />}
+            </button>
+          </div>
+
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center">
+              <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                <span className="text-orange-600 dark:text-orange-500 font-bold text-lg">
+                  {user?.username?.charAt(0).toUpperCase()}
+                </span>
               </div>
-              {adminItems.map((item) => item.show && (
+              {sidebarOpen && (
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-gray-800 dark:text-white truncate max-w-[140px]">
+                    {user?.username}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                    {user?.role === 'superAdmin' ? 'Super Admin' : user?.role}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <nav className="flex-1 overflow-y-auto py-4">
+            {filteredMenu.map((item) => {
+              const Icon = item.icon;
+              return (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                    location.pathname === item.path 
-                      ? "bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" 
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className={`flex items-center px-4 py-3 mb-1 transition-colors ${
+                    isActive(item.path)
+                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-500 border-r-4 border-orange-600'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
-                  onClick={() => setSidebarOpen(false)}
                 >
-                  {item.icon} <span>{item.label}</span>
+                  <Icon size={20} className={sidebarOpen ? 'mr-3' : 'mx-auto'} />
+                  {sidebarOpen && <span>{item.label}</span>}
                 </Link>
-              ))}
-            </>
-          )}
-          
-          <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+              );
+            })}
+          </nav>
+
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={toggleDarkMode}
+              className={`flex items-center w-full px-4 py-2 mb-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors ${
+                !sidebarOpen && 'justify-center'
+              }`}
+            >
+              {darkMode ? (
+                <MdLightMode size={20} className={sidebarOpen ? 'mr-3' : ''} />
+              ) : (
+                <MdDarkMode size={20} className={sidebarOpen ? 'mr-3' : ''} />
+              )}
+              {sidebarOpen && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
+            </button>
+            
             <button
               onClick={handleLogout}
-              className="flex items-center space-x-3 w-full px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className={`flex items-center w-full px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ${
+                !sidebarOpen && 'justify-center'
+              }`}
             >
-              <MdLogout /> <span>Logout</span>
+              <MdLogout size={20} className={sidebarOpen ? 'mr-3' : ''} />
+              {sidebarOpen && <span>Logout</span>}
             </button>
           </div>
         </div>
-        
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-bold">
-              {user?.username?.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.username}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.role}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header - ONLY ONE TOGGLE BUTTON */}
-        <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 transition-colors duration-300">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setSidebarOpen(true)} 
-                className="lg:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              >
-                <FaBars size={20} />
-              </button>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-white">
-                {currentTitle}
-              </h1>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              {/* SINGLE DARK MODE TOGGLE BUTTON - CLEAN DESIGN */}
-              <button
-                onClick={toggleDarkMode}
-                className="relative w-12 h-6 rounded-full bg-gray-200 dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors duration-300"
-                aria-label="Toggle dark mode"
-              >
-                <div 
-                  className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white dark:bg-gray-900 shadow-md transform transition-transform duration-300 flex items-center justify-center ${
-                    darkMode ? 'translate-x-6' : 'translate-x-0'
-                  }`}
-                >
-                  {darkMode ? (
-                    <IoMoon className="w-2.5 h-2.5 text-yellow-400" />
-                  ) : (
-                    <IoSunny className="w-2.5 h-2.5 text-yellow-500" />
-                  )}
-                </div>
-              </button>
-              
-              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                <span>Welcome,</span>
-                <span className="font-medium text-gray-900 dark:text-white">{user?.username}</span>
-              </div>
-            </div>
-          </div>
-        </header>
-        
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <main className={`flex-1 ${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
+        <div className="p-6">
           <Outlet />
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };

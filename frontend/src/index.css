@@ -1,25 +1,21 @@
-/* frontend/src/index.css */
 @import "tailwindcss";
 
-/* Custom dark mode variant */
 @custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   * {
-    @apply transition-colors duration-300;
+    @apply transition-colors duration-200;
   }
   
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
   }
   
-  /* Dark mode styles */
   .dark body {
     @apply bg-gray-900 text-gray-100;
   }
 }
 
-/* Custom animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -35,57 +31,21 @@
   animation: fadeIn 0.5s ease-out;
 }
 
-/* Add to your index.css or create this file and import it */
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* Custom scrollbar for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-@keyframes slideOut {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(100%);
-    opacity: 0;
-  }
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
 }
 
-@keyframes spinSlow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
 }
 
-.animate-spin-slow {
-  animation: spinSlow 2s linear infinite;
-}
-
-/* Custom toast container */
-.custom-toast-container {
-  z-index: 9999;
-}
-
-/* Custom toast styles */
-.custom-toast {
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-/* Progress bar styling */
-.custom-toast-progress {
-  background: linear-gradient(90deg, #3B82F6, #8B5CF6);
-  height: 3px;
-  border-radius: 0 0 12px 12px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }

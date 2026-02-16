@@ -2,20 +2,22 @@ import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
   MdDelete, MdImage, MdPictureAsPdf, MdDescription, MdVideoLibrary,
-  MdInsertDriveFile, MdStorage, MdDownload, MdVisibility, MdLock,
+  MdInsertDriveFile, MdDownload, MdVisibility, MdCloud
 } from 'react-icons/md';
+import useToast from '../hooks/useToast';
 
 const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
-  const { user } = useSelector((state) => state.auth || {});
+  const { user } = useSelector((state) => state.auth);
   const [downloadingId, setDownloadingId] = useState(null);
+  const toast = useToast();
 
   const getFileIcon = (type) => {
-    if (type?.startsWith('image/')) return <MdImage className="text-blue-500 text-2xl" />;
-    if (type === 'application/pdf') return <MdPictureAsPdf className="text-red-500 text-2xl" />;
-    if (type?.startsWith('video/')) return <MdVideoLibrary className="text-purple-500 text-2xl" />;
+    if (type?.startsWith('image/')) return <MdImage className="text-blue-500 dark:text-blue-400 text-2xl" />;
+    if (type === 'application/pdf') return <MdPictureAsPdf className="text-red-500 dark:text-red-400 text-2xl" />;
+    if (type?.startsWith('video/')) return <MdVideoLibrary className="text-purple-500 dark:text-purple-400 text-2xl" />;
     if (type?.includes('document') || type?.includes('word') || type?.includes('text'))
-      return <MdDescription className="text-green-500 text-2xl" />;
-    return <MdInsertDriveFile className="text-gray-500 text-2xl" />;
+      return <MdDescription className="text-green-500 dark:text-green-400 text-2xl" />;
+    return <MdInsertDriveFile className="text-gray-500 dark:text-gray-400 text-2xl" />;
   };
 
   const getFileType = (type) => {
@@ -26,168 +28,143 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
     return 'Other';
   };
 
-  // ✅ FIXED: Check if user can delete file
-  const canDeleteFile = (file) => {
-    if (!user) return false;
-    
-    // Admin can delete anything
-    if (user?.role === 'admin') return true;
-    
-    // Check if user has delete permission
-    if (user?.permissions?.delete === true) return true;
-    
-    // Check if user owns the file
-    const fileUserId = file.uploadedBy?._id || file.uploadedById || file.uploadedBy;
-    const isOwner = fileUserId === user?._id;
-    
-    return isOwner;
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const canDownload = user?.role === 'admin' || user?.permissions?.download === true;
-  const canView = user?.role === 'admin' || user?.permissions?.view === true;
-
   const handleDownload = async (file) => {
-    if (!canDownload) {
-      alert('No download permission');
-      return;
-    }
     const fileId = file.id || file._id;
     setDownloadingId(fileId);
+    
     try {
-      const fileUrl = file.downloadUrl || file.storageUrl || file.preview;
+      const fileUrl = file.downloadUrl || file.storageUrl;
       if (!fileUrl) {
-        alert('URL not available');
+        toast.error('Download URL not available');
         return;
       }
-      let downloadUrl = fileUrl;
-      if (fileUrl.includes('cloudinary.com') && !fileUrl.includes('fl_attachment')) {
-        downloadUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
-      }
+
       const link = document.createElement('a');
-      link.href = downloadUrl;
+      link.href = fileUrl;
       link.download = file.name || 'download';
       link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      toast.success(`Downloading ${file.name}`);
     } catch (error) {
       console.error('Download error:', error);
+      toast.error('Download failed');
     } finally {
       setTimeout(() => setDownloadingId(null), 800);
     }
   };
 
   const handleView = (file) => {
-    if (!canView) {
-      alert('No view permission');
-      return;
-    }
     const viewUrl = file.storageUrl || file.preview;
     if (viewUrl) window.open(viewUrl, '_blank');
   };
 
   if (!files.length) {
     return (
-      <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-        <MdInsertDriveFile className="mx-auto text-5xl text-gray-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700 mb-2">No files available</h3>
-        <p className="text-gray-500">No files have been uploaded yet</p>
+      <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
+        <MdInsertDriveFile className="mx-auto text-5xl text-gray-300 dark:text-gray-600 mb-4" />
+        <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-2">
+          You have no files
+        </h3>
+        <p className="text-gray-500 dark:text-gray-500">
+          Upload your first file to get started
+        </p>
       </div>
     );
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full bg-white">
-        <thead className="bg-gray-50">
+      <table className="min-w-full bg-white dark:bg-gray-800">
+        <thead className="bg-gray-50 dark:bg-gray-700">
           <tr>
-            <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">File</th>
-            <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">Type</th>
-            <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">Size</th>
-            <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">Status</th>
-            <th className="py-3 px-4 text-left text-sm font-medium text-gray-700">Actions</th>
+            <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">File</th>
+            <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Type</th>
+            <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Size</th>
+            <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Uploaded</th>
+            <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-200">
+        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {files.map((file, index) => {
             const fileId = file.id || file._id || `${file.name}-${index}`;
-            const userCanDelete = canDeleteFile(file);
             
             return (
-              <tr key={fileId} className="hover:bg-gray-50">
+              <tr key={fileId} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                 <td className="py-3 px-4">
                   <div className="flex items-center">
-                    <div className="w-12 h-12 flex items-center justify-center bg-gray-100 rounded mr-3">
+                    <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded mr-3">
                       {getFileIcon(file.type)}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-800 truncate max-w-xs">{file.name}</p>
+                      <p className="font-medium text-gray-800 dark:text-white truncate max-w-xs">
+                        {file.name}
+                      </p>
                       <div className="flex items-center gap-1 mt-1">
-                        <MdStorage className="text-xs text-blue-600" />
-                        <p className="text-xs text-gray-500">
-                          {file.storageUrl?.includes('cloudinary.com') ? 'Cloudinary' : 'S3'}
-                        </p>
+                        <MdCloud className="text-xs text-orange-500 dark:text-orange-400" />
+                        <p className="text-xs text-gray-500 dark:text-gray-500">S3</p>
                       </div>
                     </div>
                   </div>
                 </td>
                 <td className="py-3 px-4">
-                  <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                  <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm">
                     {getFileType(file.type)}
                   </span>
                 </td>
-                <td className="py-3 px-4 text-gray-600">
-                  {typeof file.size === 'number' ? `${file.size.toFixed(2)} MB` : `${file.size || '0.00'} MB`}
+                <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
+                  {typeof file.size === 'number' 
+                    ? formatBytes(file.size * 1024 * 1024) 
+                    : file.size || '0 MB'}
                 </td>
-                <td className="py-3 px-4">
-                  {downloadingId === fileId ? (
-                    <span className="text-yellow-600 text-sm font-medium">Downloading...</span>
-                  ) : (
-                    <span className="text-green-600 text-sm font-medium">Ready</span>
-                  )}
+                <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm">
+                  {new Date(file.uploadedAt).toLocaleDateString()}
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleView(file)}
-                      disabled={!canView}
-                      className={`px-3 py-1.5 text-sm rounded flex items-center gap-1 ${
-                        !canView ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                      }`}
+                      className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                      title="View"
                     >
-                      <MdVisibility /> {!canView ? 'Locked' : 'View'}
-                    </button>
-                    <button
-                      onClick={() => handleDownload(file)}
-                      disabled={isUploading || downloadingId === fileId || !canDownload}
-                      className={`px-3 py-1.5 text-sm rounded flex items-center gap-1 ${
-                        isUploading || downloadingId === fileId || !canDownload
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-green-100 text-green-700 hover:bg-green-200'
-                      }`}
-                    >
-                      {!canDownload ? <><MdLock /> Locked</> : <><MdDownload /> Download</>}
+                      <MdVisibility size={18} />
                     </button>
                     
-                    {/* ✅ FIXED: Delete button */}
-                    {userCanDelete ? (
-                      <button
-                        onClick={() => onRemoveFile?.(fileId)}
-                        disabled={isUploading || downloadingId === fileId}
-                        className="text-red-600 hover:bg-red-50 p-1.5 rounded-full transition-colors"
-                        title="Delete file"
-                      >
-                        <MdDelete className="text-xl" />
-                      </button>
-                    ) : (
-                      <button
-                        disabled
-                        className="text-gray-400 p-1.5 rounded-full cursor-not-allowed"
-                        title="No permission to delete"
-                      >
-                        <MdLock className="text-xl" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDownload(file)}
+                      disabled={isUploading || downloadingId === fileId}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isUploading || downloadingId === fileId
+                          ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                          : 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      }`}
+                      title="Download"
+                    >
+                      {downloadingId === fileId ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 dark:border-green-400"></div>
+                      ) : (
+                        <MdDownload size={18} />
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={() => onRemoveFile?.(fileId)}
+                      disabled={isUploading || downloadingId === fileId}
+                      className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                      title="Delete file"
+                    >
+                      <MdDelete size={18} />
+                    </button>
                   </div>
                 </td>
               </tr>

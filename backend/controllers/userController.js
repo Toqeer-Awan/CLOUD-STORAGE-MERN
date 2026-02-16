@@ -1,4 +1,3 @@
-// backend/controllers/userController.js
 import User from '../models/User.js';
 import Company from '../models/Company.js';
 import Role from '../models/Role.js';
@@ -23,7 +22,6 @@ export const getCompanyUsers = async (req, res) => {
   try {
     const { companyId } = req.params;
     
-    // Check if user has access to this company
     if (req.user.role !== 'admin' && req.user.company.toString() !== companyId) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -39,74 +37,62 @@ export const getCompanyUsers = async (req, res) => {
   }
 };
 
-// Create user (Company owners can add users to their company)
+// Create user
 export const createUser = async (req, res) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password, role, storageAllocated } = req.body;
     
-    // Check if user exists
+    console.log('Creating user with data:', { username, email, role, storageAllocated });
+    
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    // Determine which company to add user to
     let companyId;
+    let company;
     
-    if (req.user.role === 'admin') {
-      // Admin can specify company or create new company
+    if (req.user.role === 'superAdmin') {
       if (req.body.companyId) {
         companyId = req.body.companyId;
+        company = await Company.findById(companyId);
+        if (!company) {
+          return res.status(404).json({ error: 'Company not found' });
+        }
       } else {
-        // Create new company for this user
-        const companyName = `${username.toLowerCase().replace(/\s+/g, '_')}_company`;
-        const company = await Company.create({
-          name: companyName,
-          owner: null, // Will be set after user creation
-          totalStorage: 5 * 1024 * 1024 * 1024,
-          userCount: 1
-        });
-        companyId = company._id;
+        companyId = null;
       }
     } else {
-      // Company owner adding user to their company
       companyId = req.user.company;
-    }
-
-    const company = await Company.findById(companyId);
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
-
-    // Check storage quota if adding to existing company
-    const currentUsers = await User.countDocuments({ company: companyId });
-    const files = await File.find({ company: companyId });
-    const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
-    
-    if (totalStorageUsed >= company.totalStorage) {
-      return res.status(400).json({ error: 'Company storage limit reached' });
+      company = await Company.findById(companyId);
+      if (!company) {
+        return res.status(404).json({ error: 'Company not found' });
+      }
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Set permissions based on role
+    // Get role permissions from database
+    const roleDoc = await Role.findOne({ name: role });
     let permissions = {};
-    if (role === 'admin') {
-      permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true, manageFiles: true, manageStorage: true
-      };
-    } else if (role === 'moderator') {
-      permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: false, removeUser: false, changeRole: false, manageFiles: true, manageStorage: false
-      };
+    
+    if (roleDoc) {
+      permissions = roleDoc.permissions;
     } else {
+      // Default permissions if role not found
       permissions = {
         view: true, upload: true, download: true, delete: false,
-        addUser: false, removeUser: false, changeRole: false, manageFiles: false, manageStorage: false
+        addUser: false, removeUser: false, changeRole: false,
+        manageFiles: false, manageStorage: false, assignStorage: false
       };
+    }
+
+    // 🔥 FIX: For admin users, set storageAllocated to match company's totalStorage
+    let userStorageAllocated = storageAllocated || 0;
+    if (role === 'admin' && company) {
+      userStorageAllocated = company.totalStorage;
+      console.log(`Setting admin storage to company total: ${company.totalStorage} bytes`);
     }
 
     const user = await User.create({
@@ -114,17 +100,46 @@ export const createUser = async (req, res) => {
       email,
       password: hashedPassword,
       role: role || 'user',
-      company: companyId,
+      company: null,
       addedBy: req.user.id,
-      permissions
+      permissions,
+      storageAllocated: userStorageAllocated,
+      storageUsed: 0
     });
 
-    // Update company user count
-    company.userCount = await User.countDocuments({ company: companyId });
-    await company.save();
+    console.log('✅ User created with ID:', user._id);
 
-    // If company has no owner and this is admin creating, set as owner
-    if (!company.owner && req.user.role === 'admin') {
+    if (req.user.role === 'superAdmin' && !req.body.companyId) {
+      console.log('Creating new company for user...');
+      
+      const companyName = `${username.toLowerCase().replace(/\s+/g, '_')}_company`;
+      
+      company = await Company.create({
+        name: companyName,
+        owner: user._id,
+        totalStorage: 10 * 1024 * 1024 * 1024, // 10GB default
+        usedStorage: 0,
+        allocatedToUsers: user.storageAllocated,
+        userCount: 1,
+        createdBy: req.user.id
+      });
+      
+      user.company = company._id;
+      await user.save();
+      
+      companyId = company._id;
+    } 
+    else if (company) {
+      user.company = company._id;
+      await user.save();
+      
+      // Update company allocated storage
+      company.allocatedToUsers = (company.allocatedToUsers || 0) + user.storageAllocated;
+      company.userCount = await User.countDocuments({ company: company._id });
+      await company.save();
+    }
+
+    if (company && !company.owner && req.user.role === 'admin') {
       company.owner = user._id;
       await company.save();
     }
@@ -136,14 +151,16 @@ export const createUser = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        company: company._id,
-        companyName: company.name,
-        permissions: user.permissions
+        company: company?._id || null,
+        companyName: company?.name || null,
+        permissions: user.permissions,
+        storageAllocated: user.storageAllocated,
+        storageUsed: user.storageUsed
       }
     });
   } catch (error) {
     console.error('Create user error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 };
 
@@ -157,36 +174,29 @@ export const updateUserRole = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Check permissions
-    if (req.user.role !== 'admin') {
-      // Company owner can only update users in their company
+    if (req.user.role !== 'superAdmin') {
       if (req.user.company.toString() !== user.company._id.toString()) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      // Company owner cannot change admin role
-      if (user.role === 'admin' || role === 'admin') {
-        return res.status(403).json({ error: 'Cannot modify admin roles' });
-      }
+    }
+
+    // Get role permissions from database
+    const roleDoc = await Role.findOne({ name: role });
+    let permissions = {};
+    
+    if (roleDoc) {
+      permissions = roleDoc.permissions;
     }
 
     user.role = role;
+    user.permissions = permissions;
     
-    // Set permissions based on new role
-    if (role === 'admin') {
-      user.permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true, manageFiles: true, manageStorage: true
-      };
-    } else if (role === 'moderator') {
-      user.permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: false, removeUser: false, changeRole: false, manageFiles: true, manageStorage: false
-      };
-    } else {
-      user.permissions = {
-        view: true, upload: true, download: true, delete: false,
-        addUser: false, removeUser: false, changeRole: false, manageFiles: false, manageStorage: false
-      };
+    // If user becomes admin, set their storage to company total
+    if (role === 'admin' && user.company) {
+      const company = await Company.findById(user.company._id);
+      if (company) {
+        user.storageAllocated = company.totalStorage;
+      }
     }
 
     await user.save();
@@ -198,11 +208,53 @@ export const updateUserRole = async (req, res) => {
         username: user.username,
         email: user.email,
         role: user.role,
-        permissions: user.permissions
+        permissions: user.permissions,
+        storageAllocated: user.storageAllocated,
+        storageUsed: user.storageUsed
       }
     });
   } catch (error) {
     console.error('Update role error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// 🔥 NEW: Function to sync admin storage with company storage
+export const syncAdminStorage = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    
+    const company = await Company.findById(companyId);
+    if (!company) {
+      return res.status(404).json({ error: 'Company not found' });
+    }
+    
+    // Find all admins in this company
+    const admins = await User.find({ 
+      company: companyId, 
+      role: 'admin' 
+    });
+    
+    console.log(`Syncing ${admins.length} admins for company ${company.name}`);
+    
+    // Update each admin's storage to match company total
+    for (const admin of admins) {
+      admin.storageAllocated = company.totalStorage;
+      await admin.save();
+      console.log(`Updated admin ${admin.username} storage to ${company.totalStorage} bytes`);
+    }
+    
+    res.json({
+      message: `Synced ${admins.length} admin(s) storage with company total`,
+      company: {
+        _id: company._id,
+        name: company.name,
+        totalStorage: company.totalStorage
+      },
+      updatedAdmins: admins.length
+    });
+  } catch (error) {
+    console.error('Sync admin storage error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -220,27 +272,24 @@ export const deleteUser = async (req, res) => {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    // Check permissions
-    if (req.user.role !== 'admin') {
-      // Company owner can only delete users in their company
+    if (req.user.role !== 'superAdmin') {
       if (req.user.company.toString() !== user.company._id.toString()) {
         return res.status(403).json({ error: 'Access denied' });
       }
-      // Cannot delete company owner
       if (user.company.owner && user.company.owner.toString() === user._id.toString()) {
         return res.status(403).json({ error: 'Cannot delete company owner' });
       }
     }
 
-    await user.deleteOne();
-    
-    // Update company user count
     const company = await Company.findById(user.company._id);
     if (company) {
-      company.userCount = await User.countDocuments({ company: company._id });
+      company.allocatedToUsers = (company.allocatedToUsers || 0) - (user.storageAllocated || 0);
+      company.userCount = await User.countDocuments({ company: company._id }) - 1;
       await company.save();
     }
 
+    await user.deleteOne();
+    
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -270,30 +319,27 @@ export const getUserPermissions = async (req, res) => {
 // Get all roles and permissions
 export const getAllRolesPermissions = async (req, res) => {
   try {
-    const customRoles = await Role.find();
+    const allRoles = await Role.find();
     
-    const roles = {
-      admin: { 
-        view: true, upload: true, download: true, delete: true, 
-        addUser: true, removeUser: true, changeRole: true, manageFiles: true, manageStorage: true 
-      },
-      moderator: { 
-        view: true, upload: true, download: true, delete: true, 
-        addUser: false, removeUser: false, changeRole: false, manageFiles: true, manageStorage: false 
-      },
-      user: { 
-        view: true, upload: true, download: true, delete: false, 
-        addUser: false, removeUser: false, changeRole: false, manageFiles: false, manageStorage: false 
+    const defaultRoles = {};
+    const customRoles = [];
+    
+    allRoles.forEach(role => {
+      if (!role.isCustom) {
+        defaultRoles[role.name] = role.permissions;
+      } else {
+        customRoles.push({
+          name: role.name,
+          displayName: role.displayName,
+          permissions: role.permissions,
+          isCustom: true
+        });
       }
-    };
-
+    });
+    
     res.json({ 
-      roles, 
-      customRoles: customRoles.map(role => ({
-        name: role.name,
-        displayName: role.displayName,
-        permissions: role.permissions
-      }))
+      roles: defaultRoles,
+      customRoles
     });
   } catch (error) {
     console.error('Get all roles & permissions error:', error);
@@ -310,23 +356,35 @@ export const updateAllRolesPermissions = async (req, res) => {
       return res.status(400).json({ error: 'Roles object is required' });
     }
 
-    // Update default roles in users
+    console.log('Updating permissions:', { roles, customRoles });
+
     for (const [roleName, permissions] of Object.entries(roles)) {
+      await Role.findOneAndUpdate(
+        { name: roleName, isCustom: false },
+        { 
+          name: roleName,
+          displayName: formatRoleName(roleName),
+          permissions: permissions,
+          isCustom: false
+        },
+        { upsert: true, new: true }
+      );
+      
       await User.updateMany(
         { role: roleName },
         { $set: { permissions: permissions } }
       );
     }
 
-    // Save custom roles
     if (Array.isArray(customRoles)) {
       for (const customRole of customRoles) {
         await Role.findOneAndUpdate(
-          { name: customRole.name },
+          { name: customRole.name, isCustom: true },
           {
             name: customRole.name,
             displayName: customRole.displayName || customRole.name,
-            permissions: customRole.permissions
+            permissions: customRole.permissions,
+            isCustom: true
           },
           { upsert: true, new: true }
         );
@@ -338,6 +396,14 @@ export const updateAllRolesPermissions = async (req, res) => {
       }
     }
 
+    if (Array.isArray(customRoles)) {
+      const customRoleNames = customRoles.map(r => r.name);
+      await Role.deleteMany({ 
+        isCustom: true,
+        name: { $nin: customRoleNames }
+      });
+    }
+
     res.json({ 
       message: 'Permissions updated successfully',
       roles,
@@ -345,8 +411,14 @@ export const updateAllRolesPermissions = async (req, res) => {
     });
   } catch (error) {
     console.error('Update all roles & permissions error:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
+};
+
+const formatRoleName = (roleName) => {
+  return roleName
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, str => str.toUpperCase());
 };
 
 // Delete custom role
@@ -354,14 +426,22 @@ export const deleteCustomRole = async (req, res) => {
   try {
     const { roleName } = req.params;
     
-    if (['admin', 'moderator', 'user'].includes(roleName)) {
+    const role = await Role.findOne({ name: roleName });
+    if (role && !role.isCustom) {
       return res.status(400).json({ error: 'Cannot delete default roles' });
     }
     
-    await Role.deleteOne({ name: roleName });
+    await Role.deleteOne({ name: roleName, isCustom: true });
+    
+    const defaultUserRole = await Role.findOne({ name: 'user', isCustom: false });
     await User.updateMany(
       { role: roleName },
-      { $set: { role: 'user' } }
+      { 
+        $set: { 
+          role: 'user',
+          permissions: defaultUserRole?.permissions || {}
+        } 
+      }
     );
     
     res.json({ message: `Role ${roleName} deleted successfully` });
