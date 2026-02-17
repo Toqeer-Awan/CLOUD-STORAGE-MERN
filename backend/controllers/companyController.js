@@ -11,7 +11,6 @@ export const getAllCompanies = async (req, res) => {
       .populate('owner', 'username email')
       .sort({ createdAt: -1 });
     
-    // Get user count and storage usage for each company
     const companiesWithStats = await Promise.all(
       companies.map(async (company) => {
         const users = await User.find({ company: company._id }).select('username email role createdAt storageAllocated storageUsed');
@@ -50,7 +49,6 @@ export const getCompanyById = async (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    // Check if user belongs to this company or is admin
     if (req.user.role !== 'admin' && req.user.company.toString() !== company._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -139,31 +137,13 @@ export const getMyCompany = async (req, res) => {
     const totalStorageUsed = files.reduce((acc, file) => acc + file.size, 0);
     const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
     
-    // 🔥 FIX: Ensure admin user shows correct allocated storage
-    const usersWithCorrectStorage = users.map(user => {
-      // If user is admin, their storage should match company total
-      if (user.role === 'admin') {
-        return {
-          ...user.toObject(),
-          storageAllocated: company.totalStorage, // Force admin storage to match company
-          storageUsed: user.storageUsed || 0
-        };
-      }
-      return {
-        ...user.toObject(),
-        storageAllocated: user.storageAllocated || 0,
-        storageUsed: user.storageUsed || 0
-      };
-    });
-    
-    // Calculate storage by user
     const storageByUser = {};
     
-    usersWithCorrectStorage.forEach(user => {
+    users.forEach(user => {
       storageByUser[user._id] = {
         username: user.username,
         email: user.email,
-        storageAllocated: user.storageAllocated,
+        storageAllocated: user.storageAllocated || 0,
         storageUsed: 0,
         fileCount: 0
       };
@@ -176,10 +156,21 @@ export const getMyCompany = async (req, res) => {
       }
     });
 
-    res.json({
+    // Debug log to check admin storage
+    const adminUser = users.find(u => u.role === 'admin');
+    if (adminUser) {
+      console.log('🔍 ADMIN USER FROM DB:', {
+        username: adminUser.username,
+        storageAllocated: adminUser.storageAllocated,
+        storageAllocatedGB: (adminUser.storageAllocated / (1024 * 1024 * 1024)).toFixed(2) + 'GB'
+      });
+    }
+
+    const responseData = {
       ...company.toObject(),
-      users: usersWithCorrectStorage.map(user => ({
-        ...user,
+      users: users.map(user => ({
+        ...user.toObject(),
+        storageAllocated: user.storageAllocated || 0,
         storageUsed: storageByUser[user._id]?.storageUsed || 0,
         fileCount: storageByUser[user._id]?.fileCount || 0
       })),
@@ -190,7 +181,19 @@ export const getMyCompany = async (req, res) => {
       allocationPercentage: ((totalAllocated / company.totalStorage) * 100).toFixed(2),
       availableStorage: company.totalStorage - totalStorageUsed,
       unallocatedStorage: company.totalStorage - totalAllocated
+    };
+    
+    console.log('📤 SENDING COMPANY DATA:', {
+      companyName: company.name,
+      totalStorage: (company.totalStorage / (1024*1024*1024)).toFixed(2) + 'GB',
+      users: responseData.users.map(u => ({
+        name: u.username,
+        role: u.role,
+        storageAllocated: (u.storageAllocated / (1024*1024*1024)).toFixed(2) + 'GB'
+      }))
     });
+    
+    res.json(responseData);
   } catch (error) {
     console.error('Get my company error:', error);
     res.status(500).json({ error: 'Server error' });
@@ -208,7 +211,6 @@ export const deleteCompany = async (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    // Delete all users and files associated with this company
     await User.deleteMany({ company: company._id });
     await File.deleteMany({ company: company._id });
     await company.deleteOne();

@@ -1,24 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { companyAPI, storageAPI } from '../redux/api/api';
+import { companyAPI, storageAPI, userAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
 import UserStorageManager from '../components/UserStoreManager';
 import { 
   MdStorage, MdPeople, MdFolder, MdBusiness,
   MdWarning, MdCheckCircle, MdPerson, MdEmail,
-  MdCalendarToday, MdAddCircle, MdEdit
+  MdCalendarToday, MdEdit, MdDelete, MdRefresh
 } from "react-icons/md";
 
 const CompanyDashboard = () => {
-  const { user } = useSelector((state) => state.auth);
+  const { user: currentUser } = useSelector((state) => state.auth);
   const [companyData, setCompanyData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [showStorageModal, setShowStorageModal] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
   const toast = useToast();
 
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = currentUser?.role === 'admin';
 
   useEffect(() => {
     fetchCompanyData();
@@ -28,9 +30,10 @@ const CompanyDashboard = () => {
     try {
       setLoading(true);
       const response = await companyAPI.getMyCompany();
-      console.log('Company Data:', response.data);
+      console.log('Company Data from Backend:', response.data);
       setCompanyData(response.data);
     } catch (err) {
+      console.error('Fetch company error:', err);
       setError(err.response?.data?.error || 'Failed to load company data');
       toast.error('Failed to load company data');
     } finally {
@@ -39,12 +42,45 @@ const CompanyDashboard = () => {
   };
 
   const handleAllocateStorage = (user) => {
+    console.log('Opening storage modal for user:', user);
     setSelectedUser(user);
     setShowStorageModal(true);
   };
 
   const handleStorageSuccess = () => {
+    console.log('Storage allocation successful, refreshing data...');
     fetchCompanyData();
+    setShowStorageModal(false);
+    setSelectedUser(null);
+  };
+
+  const handleDeleteUser = async (userId, username) => {
+    console.log('Delete attempt for user:', { userId, username });
+    
+    if (!window.confirm(`Are you sure you want to delete ${username}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingUserId(userId);
+    setActionLoading(true);
+    
+    try {
+      console.log('Sending delete request for user:', userId);
+      const response = await userAPI.deleteUser(userId);
+      console.log('Delete response:', response.data);
+      
+      toast.success(`User ${username} deleted successfully`);
+      await fetchCompanyData();
+    } catch (err) {
+      console.error('Delete user error:', err);
+      console.error('Error response:', err.response?.data);
+      
+      const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Failed to delete user';
+      toast.error(errorMessage);
+    } finally {
+      setDeletingUserId(null);
+      setActionLoading(false);
+    }
   };
 
   const formatBytes = (bytes) => {
@@ -72,14 +108,18 @@ const CompanyDashboard = () => {
 
   if (!companyData) return null;
 
-  // Calculate total allocated storage from all users
-  const totalAllocated = companyData.users?.reduce((sum, user) => sum + (user.storageAllocated || 0), 0) || 0;
-  
-  // 🔥 SIMPLE: Available to allocate = Total Storage - Total Allocated
-  const availableToAllocate = (companyData.totalStorage || 0) - totalAllocated;
-  
-  // Ensure number is valid
-  const safeAvailableToAllocate = isNaN(availableToAllocate) ? 0 : Math.max(0, availableToAllocate);
+  // Get values from backend
+  const totalStorage = companyData.totalStorage || 0;
+  const totalAllocated = companyData.allocatedToUsers || 0;
+  const availableToAllocate = totalStorage - totalAllocated;
+
+  console.log('Company Stats:', {
+    totalStorage: formatBytes(totalStorage),
+    totalAllocated: formatBytes(totalAllocated),
+    availableToAllocate: formatBytes(availableToAllocate),
+    userCount: companyData.users?.length,
+    fileCount: companyData.recentFiles?.length
+  });
 
   const userCount = companyData.users?.length || 0;
   const fileCount = companyData.recentFiles?.length || 0;
@@ -110,22 +150,34 @@ const CompanyDashboard = () => {
         </div>
       </div>
 
-      {/* Storage Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Storage Stats Cards - 3 Cards Only */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Storage Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Total Storage</p>
-              <p className="text-2xl font-bold text-gray-800 dark:text-white">
-                {formatBytes(companyData.totalStorage || 0)}
-              </p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-white">{formatBytes(totalStorage)}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
               <MdStorage className="text-blue-600 dark:text-blue-400 text-xl" />
             </div>
           </div>
+          {/* <div className="mt-2">
+            <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+              <span>Allocated: {formatBytes(totalAllocated)}</span>
+              <span>{((totalAllocated / totalStorage) * 100).toFixed(1)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div 
+                className="bg-orange-500 dark:bg-orange-400 h-1.5 rounded-full transition-all duration-500"
+                style={{ width: `${(totalAllocated / totalStorage) * 100}%` }}
+              ></div>
+            </div>
+          </div> */}
         </div>
 
+        {/* Team Members Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
@@ -139,6 +191,7 @@ const CompanyDashboard = () => {
           </div>
         </div>
 
+        {/* Total Files Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
@@ -151,47 +204,50 @@ const CompanyDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 🔥 ONLY SHOW AVAILABLE TO ALLOCATE */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between">
+      {/* Storage Warning if needed */}
+      {/* {totalAllocated > totalStorage * 0.8 && (
+        <div className={`rounded-lg p-4 ${
+          totalAllocated > totalStorage * 0.9 
+            ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' 
+            : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+        }`}>
+          <div className="flex items-center">
+            <MdWarning className={`text-xl mr-3 ${
+              totalAllocated > totalStorage * 0.9 ? 'text-red-500 dark:text-red-400' : 'text-yellow-500 dark:text-yellow-400'
+            }`} />
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Available to Allocate</p>
-              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {formatBytes(safeAvailableToAllocate)}
+              <p className={`font-medium ${
+                totalAllocated > totalStorage * 0.9 ? 'text-red-800 dark:text-red-400' : 'text-yellow-800 dark:text-yellow-400'
+              }`}>
+                Storage {totalAllocated > totalStorage * 0.9 ? 'Critical' : 'Warning'}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                {((totalAllocated / (companyData.totalStorage || 1)) * 100).toFixed(1)}% allocated
+              <p className={`text-sm ${
+                totalAllocated > totalStorage * 0.9 ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+              }`}>
+                Your company has allocated {((totalAllocated / totalStorage) * 100).toFixed(1)}% of total storage.
+                {totalAllocated > totalStorage * 0.9 
+                  ? ' Consider freeing up space or contact super admin.' 
+                  : ' Plan your storage allocation carefully.'}
               </p>
-            </div>
-            <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
-              <MdAddCircle className="text-orange-600 dark:text-orange-400 text-xl" />
-            </div>
-          </div>
-          {/* Allocation progress bar */}
-          <div className="mt-3">
-            <div className="overflow-hidden h-1.5 bg-gray-200 dark:bg-gray-700 rounded">
-              <div
-                style={{ width: `${Math.min((totalAllocated / (companyData.totalStorage || 1)) * 100, 100)}%` }}
-                className="h-full bg-orange-500 dark:bg-orange-400 rounded"
-              ></div>
             </div>
           </div>
         </div>
-      </div>
+      )} */}
 
-      {/* Team Members Table with Storage Management */}
+      {/* Team Members Table */}
       {companyData.users && companyData.users.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-100 dark:border-gray-700">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Team Members</h3>
-            {isAdmin && (
-              <div className="text-sm bg-orange-50 dark:bg-orange-900/20 px-3 py-1 rounded-full">
-                <span className="text-orange-600 dark:text-orange-400 font-medium">
-                  Available to allocate: {formatBytes(safeAvailableToAllocate)}
-                </span>
-              </div>
-            )}
+            <button
+              onClick={fetchCompanyData}
+              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Refresh"
+            >
+              <MdRefresh size={18} />
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -208,9 +264,18 @@ const CompanyDashboard = () => {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {companyData.users.map((member) => {
-                  const usagePercentage = member.storageAllocated > 0 
-                    ? ((member.storageUsed / member.storageAllocated) * 100).toFixed(1) 
+                  const memberStorageAllocated = member.storageAllocated || 0;
+                  const memberStorageUsed = member.storageUsed || 0;
+                  
+                  const usagePercentage = memberStorageAllocated > 0 
+                    ? ((memberStorageUsed / memberStorageAllocated) * 100).toFixed(1) 
                     : '0.0';
+                  
+                  const isOwner = member._id === companyData.owner?._id;
+                  const isCurrentUser = member._id === currentUser?._id;
+                  
+                  // Only show actions for non-owner, non-current users
+                  const showActions = isAdmin && !isOwner && !isCurrentUser;
                   
                   return (
                     <tr key={member._id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
@@ -222,9 +287,14 @@ const CompanyDashboard = () => {
                             </span>
                           </div>
                           <span className="font-medium text-gray-800 dark:text-white">{member.username}</span>
-                          {member._id === companyData.owner?._id && (
+                          {isOwner && (
                             <span className="ml-2 px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 text-xs rounded-full">
                               Owner
+                            </span>
+                          )}
+                          {isCurrentUser && !isOwner && (
+                            <span className="ml-2 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-xs rounded-full">
+                              You
                             </span>
                           )}
                         </div>
@@ -240,10 +310,10 @@ const CompanyDashboard = () => {
                         </span>
                       </td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                        {formatBytes(member.storageAllocated || 0)}
+                        {formatBytes(memberStorageAllocated)}
                       </td>
                       <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                        {formatBytes(member.storageUsed || 0)}
+                        {formatBytes(memberStorageUsed)}
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
@@ -260,20 +330,39 @@ const CompanyDashboard = () => {
                           </div>
                         </div>
                       </td>
-                      {isAdmin && member._id !== user?._id && (
+                      {showActions && (
                         <td className="py-3 px-4">
-                          <button
-                            onClick={() => handleAllocateStorage(member)}
-                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                            title="Allocate Storage"
-                            disabled={safeAvailableToAllocate <= 0}
-                          >
-                            <MdEdit size={18} />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                console.log('Edit button clicked for user:', member);
+                                handleAllocateStorage(member);
+                              }}
+                              className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Allocate Storage"
+                              disabled={availableToAllocate <= 0 || actionLoading}
+                            >
+                              <MdEdit size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(member._id, member.username)}
+                              disabled={deletingUserId === member._id || actionLoading}
+                              className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                              title="Delete User"
+                            >
+                              {deletingUserId === member._id ? (
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
+                              ) : (
+                                <MdDelete size={18} />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       )}
-                      {isAdmin && member._id === user?._id && (
-                        <td className="py-3 px-4 text-xs text-gray-400">(You)</td>
+                      {!showActions && (isOwner || isCurrentUser) && (
+                        <td className="py-3 px-4 text-xs text-gray-400">
+                          {isOwner ? 'Owner' : ''}
+                        </td>
                       )}
                     </tr>
                   );
@@ -290,9 +379,10 @@ const CompanyDashboard = () => {
           user={selectedUser}
           company={{
             ...companyData,
-            availableToAllocate: safeAvailableToAllocate
+            availableToAllocate: availableToAllocate
           }}
           onClose={() => {
+            console.log('Closing storage modal');
             setShowStorageModal(false);
             setSelectedUser(null);
           }}

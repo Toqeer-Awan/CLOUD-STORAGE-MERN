@@ -20,54 +20,22 @@ export const allocateStorageToCompany = async (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
     
-    // Store old storage for logging
-    const oldStorage = company.totalStorage;
-    
     // Update company total storage
     company.totalStorage = storageInBytes;
     await company.save();
     
-    console.log(`✅ Company ${company.name} storage updated from ${oldStorage / (1024*1024*1024)}GB to ${storageInGB}GB`);
+    console.log(`✅ Company ${company.name} storage updated to ${storageInGB}GB`);
     
-    // 🔥 CRITICAL FIX: Find ALL admins in this company and update their storage
+    // Update all admins in this company to have the same storage
     const admins = await User.find({ 
       company: companyId, 
       role: 'admin' 
     });
     
-    console.log(`Found ${admins.length} admin(s) in company ${company.name}`);
-    
-    const updatedAdmins = [];
     for (const admin of admins) {
-      const oldAdminStorage = admin.storageAllocated;
       admin.storageAllocated = storageInBytes;
       await admin.save();
-      updatedAdmins.push({
-        id: admin._id,
-        username: admin.username,
-        oldStorage: oldAdminStorage,
-        newStorage: admin.storageAllocated
-      });
-      console.log(`✅ Updated admin ${admin.username} storage from ${oldAdminStorage / (1024*1024*1024)}GB to ${storageInGB}GB`);
-    }
-    
-    // Also update the company owner if they are an admin
-    const owner = await User.findById(company.owner);
-    if (owner && owner.role === 'admin' && owner.company.toString() === companyId) {
-      const oldOwnerStorage = owner.storageAllocated;
-      owner.storageAllocated = storageInBytes;
-      await owner.save();
-      console.log(`✅ Updated company owner ${owner.username} storage from ${oldOwnerStorage / (1024*1024*1024)}GB to ${storageInGB}GB`);
-      
-      // Add to updatedAdmins if not already there
-      if (!updatedAdmins.find(a => a.id.toString() === owner._id.toString())) {
-        updatedAdmins.push({
-          id: owner._id,
-          username: owner.username,
-          oldStorage: oldOwnerStorage,
-          newStorage: owner.storageAllocated
-        });
-      }
+      console.log(`Updated admin ${admin.username} storage to ${storageInGB}GB`);
     }
     
     // Get updated company data
@@ -86,11 +54,7 @@ export const allocateStorageToCompany = async (req, res) => {
         availableStorage: updatedCompany.totalStorage - updatedCompany.usedStorage,
         unallocatedStorage: updatedCompany.totalStorage - totalAllocated
       },
-      updatedAdmins: updatedAdmins.map(a => ({
-        username: a.username,
-        oldStorage: a.oldStorage / (1024*1024*1024),
-        newStorage: a.newStorage / (1024*1024*1024)
-      }))
+      updatedAdmins: admins.length
     });
   } catch (error) {
     console.error('Allocate storage error:', error);
@@ -154,7 +118,6 @@ export const allocateStorageToUser = async (req, res) => {
     const companyUsers = await User.find({ company: company._id });
     
     // Calculate total allocated storage (excluding the user we're updating)
-    const previousUserAllocation = targetUser.storageAllocated || 0;
     const totalAllocated = companyUsers.reduce((total, u) => {
       if (u._id.toString() !== userId) {
         return total + (u.storageAllocated || 0);
@@ -162,7 +125,7 @@ export const allocateStorageToUser = async (req, res) => {
       return total;
     }, 0);
     
-    // Calculate available storage considering the user's current allocation
+    // Calculate available storage
     const availableToAllocate = company.totalStorage - totalAllocated;
     
     if (storageInBytes > availableToAllocate) {
@@ -181,11 +144,6 @@ export const allocateStorageToUser = async (req, res) => {
     company.allocatedToUsers = newTotalAllocated;
     await company.save();
     
-    // Get fresh data for response
-    const freshCompany = await Company.findById(company._id);
-    const freshUsers = await User.find({ company: company._id });
-    const freshTotalAllocated = freshUsers.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
-    
     res.json({
       message: `Storage allocated to ${targetUser.username}`,
       user: {
@@ -200,9 +158,9 @@ export const allocateStorageToUser = async (req, res) => {
         _id: company._id,
         name: company.name,
         totalStorage: company.totalStorage,
-        allocatedToUsers: freshTotalAllocated,
+        allocatedToUsers: newTotalAllocated,
         usedStorage: company.usedStorage,
-        availableToAllocate: company.totalStorage - freshTotalAllocated,
+        availableToAllocate: company.totalStorage - newTotalAllocated,
         availableStorage: company.totalStorage - company.usedStorage
       }
     });
@@ -284,14 +242,6 @@ export const getCompanyStorage = async (req, res) => {
     company.usedStorage = totalUsed;
     company.allocatedToUsers = totalAllocated;
     await company.save();
-    
-    console.log(`Company ${company.name} stats:`, {
-      totalStorage: (company.totalStorage / (1024*1024*1024)).toFixed(2) + 'GB',
-      usedStorage: (totalUsed / (1024*1024*1024)).toFixed(2) + 'GB',
-      allocatedToUsers: (totalAllocated / (1024*1024*1024)).toFixed(2) + 'GB',
-      availableStorage: ((company.totalStorage - totalUsed) / (1024*1024*1024)).toFixed(2) + 'GB',
-      unallocated: ((company.totalStorage - totalAllocated) / (1024*1024*1024)).toFixed(2) + 'GB'
-    });
     
     res.json({
       company: {
