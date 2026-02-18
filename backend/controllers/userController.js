@@ -3,10 +3,9 @@ import Company from '../models/Company.js';
 import Role from '../models/Role.js';
 import bcrypt from 'bcryptjs';
 
-const DEFAULT_ADMIN_STORAGE = 50 * 1024 * 1024 * 1024; // 50GB for admins
-const DEFAULT_USER_STORAGE = 10 * 1024 * 1024 * 1024; // 10GB for regular users
-
-// Get all users (Admin only)
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Private/Admin
 export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find()
@@ -15,17 +14,19 @@ export const getAllUsers = async (req, res) => {
       .populate('addedBy', 'username email');
     res.json(users);
   } catch (error) {
-    console.error('Get users error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Get users error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Get users by company (For company owners)
+// @desc    Get users by company
+// @route   GET /api/users/company/:companyId
+// @access  Private/Admin
 export const getCompanyUsers = async (req, res) => {
   try {
     const { companyId } = req.params;
     
-    if (req.user.role !== 'admin' && req.user.company.toString() !== companyId) {
+    if (req.user.role !== 'admin' && req.user.role !== 'superAdmin' && req.user.company?.toString() !== companyId) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -35,25 +36,31 @@ export const getCompanyUsers = async (req, res) => {
     
     res.json(users);
   } catch (error) {
-    console.error('Get company users error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Get company users error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Create user
+// @desc    Create a new user
+// @route   POST /api/users
+// @access  Private/Admin
 export const createUser = async (req, res) => {
   try {
-    const { username, email, password, role, storageAllocated } = req.body;
+    const { username, email, password, role } = req.body;
     
-    console.log('Creating user with data:', { username, email, role, storageAllocated });
+    console.log('📝 Creating user with data:', { username, email, role });
     
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Please provide username, email and password' });
+    }
+
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ error: 'User already exists' });
     }
 
-    let companyId;
-    let company;
+    let companyId = null;
+    let company = null;
     
     if (req.user.role === 'superAdmin') {
       if (req.body.companyId) {
@@ -62,8 +69,6 @@ export const createUser = async (req, res) => {
         if (!company) {
           return res.status(404).json({ error: 'Company not found' });
         }
-      } else {
-        companyId = null;
       }
     } else {
       companyId = req.user.company;
@@ -76,256 +81,384 @@ export const createUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const roleDoc = await Role.findOne({ name: role });
-    let permissions = {};
-    
-    if (roleDoc) {
-      permissions = roleDoc.permissions;
-    } else {
+    let permissions = {
+      view: true, upload: true, download: true, delete: false,
+      addUser: false, removeUser: false, changeRole: false,
+      manageFiles: false, manageStorage: false, assignStorage: false
+    };
+
+    if (role === 'admin') {
       permissions = {
-        view: true, upload: true, download: true, delete: false,
-        addUser: false, removeUser: false, changeRole: false,
-        manageFiles: false, manageStorage: false, assignStorage: false
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: true,
+        manageFiles: true, manageStorage: true, assignStorage: true
       };
     }
 
-    let userStorageAllocated = 0;
-    
-    if (storageAllocated) {
-      userStorageAllocated = storageAllocated;
-    } else if (role === 'admin') {
-      userStorageAllocated = DEFAULT_ADMIN_STORAGE; // 50GB
-      console.log(`✅ Setting admin storage to 50GB: ${DEFAULT_ADMIN_STORAGE / (1024*1024*1024)}GB`);
-    } else {
-      userStorageAllocated = DEFAULT_USER_STORAGE; // 10GB
-      console.log(`✅ Setting user storage to 10GB: ${DEFAULT_USER_STORAGE / (1024*1024*1024)}GB`);
+    let storageAllocated = 0;
+    if (role === 'admin' && company) {
+      storageAllocated = company.totalStorage || 50 * 1024 * 1024 * 1024;
     }
 
-    const user = await User.create({
+    const user = new User({
       username,
       email,
       password: hashedPassword,
       role: role || 'user',
-      company: null,
+      company: companyId,
       addedBy: req.user.id,
-      permissions,
-      storageAllocated: userStorageAllocated,
-      storageUsed: 0
+      storageAllocated,
+      storageUsed: 0,
+      allocatedToUsers: 0,
+      permissions
     });
 
+    await user.save();
     console.log('✅ User created with ID:', user._id);
-    console.log(`✅ User storage allocated: ${userStorageAllocated / (1024*1024*1024)}GB`);
 
-    if (req.user.role === 'superAdmin' && !req.body.companyId) {
-      console.log('Creating new company for user...');
+    if (req.user.role === 'superAdmin' && !req.body.companyId && role === 'admin') {
+      console.log('🏢 Creating new company for user...');
       
       const companyName = `${username.toLowerCase().replace(/\s+/g, '_')}_company`;
       
-      company = await Company.create({
+      company = new Company({
         name: companyName,
         owner: user._id,
         totalStorage: 50 * 1024 * 1024 * 1024,
         usedStorage: 0,
-        allocatedToUsers: userStorageAllocated,
         userCount: 1,
         createdBy: req.user.id
       });
       
-      user.company = company._id;
-      await user.save();
+      await company.save();
       
-      companyId = company._id;
+      user.company = company._id;
+      user.storageAllocated = 50 * 1024 * 1024 * 1024;
+      await user.save();
     } 
     else if (company) {
-      user.company = company._id;
-      await user.save();
-      
-      company.allocatedToUsers = (company.allocatedToUsers || 0) + userStorageAllocated;
       company.userCount = await User.countDocuments({ company: company._id });
       await company.save();
     }
 
-    if (company && !company.owner && req.user.role === 'admin') {
-      company.owner = user._id;
-      await company.save();
-    }
+    const userResponse = user.toObject();
+    delete userResponse.password;
 
     res.status(201).json({
       message: 'User created successfully',
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        company: company?._id || null,
-        companyName: company?.name || null,
-        permissions: user.permissions,
-        storageAllocated: user.storageAllocated,
-        storageUsed: user.storageUsed
-      }
+      user: userResponse
     });
+
   } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ error: 'Server error: ' + error.message });
+    console.error('❌ Create user error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Update user role
+// @desc    Update user role
+// @route   PUT /api/users/:id/role
+// @access  Private/Admin
 export const updateUserRole = async (req, res) => {
   try {
     const { role } = req.body;
-    const user = await User.findById(req.params.id).populate('company');
+    const user = await User.findById(req.params.id);
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (req.user.role !== 'superAdmin') {
-      if (req.user.company.toString() !== user.company._id.toString()) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-    }
+    let permissions = {
+      view: true, upload: true, download: true, delete: false,
+      addUser: false, removeUser: false, changeRole: false,
+      manageFiles: false, manageStorage: false, assignStorage: false
+    };
 
-    const roleDoc = await Role.findOne({ name: role });
-    let permissions = {};
-    
-    if (roleDoc) {
-      permissions = roleDoc.permissions;
+    if (role === 'admin' || role === 'superAdmin') {
+      permissions = {
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: true,
+        manageFiles: true, manageStorage: true, assignStorage: true
+      };
     }
 
     if (role === 'admin' && user.role !== 'admin') {
-      user.storageAllocated = DEFAULT_ADMIN_STORAGE; // 50GB
-      console.log(`✅ User ${user.username} became admin, storage updated to 50GB`);
-    } else if (role === 'user' && user.role === 'admin') {
-      user.storageAllocated = DEFAULT_USER_STORAGE; // 10GB
-      console.log(`✅ User ${user.username} became regular user, storage updated to 10GB`);
+      const company = await Company.findById(user.company);
+      if (company) {
+        user.storageAllocated = company.totalStorage;
+      }
     }
 
     user.role = role;
     user.permissions = permissions;
     await user.save();
 
-    res.json({
-      message: 'User role updated successfully',
+    res.json({ 
+      message: 'User role updated',
       user: {
         _id: user._id,
         username: user.username,
-        email: user.email,
         role: user.role,
         permissions: user.permissions,
-        storageAllocated: user.storageAllocated,
-        storageUsed: user.storageUsed
+        storageAllocated: user.storageAllocated
       }
     });
   } catch (error) {
-    console.error('Update role error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Update role error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// 🔥 FIXED: Delete user from company
+// @desc    Delete user
+// @route   DELETE /api/users/:id
+// @access  Private/Admin
 export const deleteUser = async (req, res) => {
   try {
-    const { id } = req.params;
-    console.log('Delete user request for ID:', id);
-    console.log('Requesting user:', {
-      id: req.user.id,
-      role: req.user.role,
-      company: req.user.company
-    });
-
-    // Find the user to delete
-    const userToDelete = await User.findById(id).populate('company');
+    const user = await User.findById(req.params.id);
     
-    if (!userToDelete) {
-      console.log('User not found with ID:', id);
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    console.log('User to delete:', {
-      id: userToDelete._id,
-      username: userToDelete.username,
-      role: userToDelete.role,
-      company: userToDelete.company?._id,
-      isOwner: userToDelete.company?.owner?.toString() === userToDelete._id.toString()
-    });
-
-    // Check if user is trying to delete themselves
-    if (userToDelete._id.toString() === req.user.id.toString()) {
-      console.log('Cannot delete yourself');
+    if (user._id.toString() === req.user.id.toString()) {
       return res.status(400).json({ error: 'Cannot delete your own account' });
     }
 
-    // Check if user has a company
-    if (!userToDelete.company) {
-      console.log('User has no company');
-      return res.status(400).json({ error: 'User has no company assigned' });
-    }
-
-    // 🔥 FIX: Get admin's company ID properly
-    const adminCompanyId = req.user.company?._id?.toString() || req.user.company?.toString();
-    const userCompanyId = userToDelete.company._id?.toString();
-
-    console.log('Company comparison:', {
-      adminCompanyId,
-      userCompanyId,
-      match: adminCompanyId === userCompanyId
-    });
-
-    // Check if user belongs to admin's company
-    if (adminCompanyId !== userCompanyId) {
-      console.log('User does not belong to admin company');
-      return res.status(403).json({ 
-        error: 'User does not belong to your company',
-        message: 'You can only delete users from your own company'
+    if (user.role === 'user' && user.storageAllocated > 0) {
+      const admin = await User.findOne({ 
+        company: user.company, 
+        role: 'admin' 
       });
+      
+      if (admin) {
+        admin.allocatedToUsers = (admin.allocatedToUsers || 0) - user.storageAllocated;
+        await admin.save();
+        console.log(`✅ Updated admin ${admin.username} allocatedToUsers: -${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
+      }
     }
 
-    // Check if user is the company owner
-    const company = await Company.findById(userCompanyId);
-    if (company && company.owner?.toString() === userToDelete._id.toString()) {
-      console.log('Cannot delete company owner');
-      return res.status(403).json({ 
-        error: 'Cannot delete company owner',
-        message: 'The company owner cannot be deleted'
-      });
+    if (user.company) {
+      const company = await Company.findById(user.company);
+      if (company) {
+        company.userCount = Math.max(0, (company.userCount || 1) - 1);
+        await company.save();
+      }
     }
 
-    // Update company stats before deletion
-    if (company) {
-      company.allocatedToUsers = (company.allocatedToUsers || 0) - (userToDelete.storageAllocated || 0);
-      company.userCount = Math.max(0, (company.userCount || 1) - 1);
-      await company.save();
-      console.log('Updated company stats:', {
-        allocatedToUsers: company.allocatedToUsers,
-        userCount: company.userCount
-      });
-    }
-
-    // Delete the user
-    await User.findByIdAndDelete(id);
-    console.log('✅ User deleted successfully:', userToDelete.username);
-
+    await User.findByIdAndDelete(req.params.id);
+    console.log('✅ User deleted successfully:', user.username);
+    
     res.json({ 
       success: true,
-      message: `User ${userToDelete.username} deleted successfully`,
-      deletedUser: {
-        id: userToDelete._id,
-        username: userToDelete.username,
-        email: userToDelete.email
-      }
+      message: 'User deleted successfully' 
     });
-
+    
   } catch (error) {
     console.error('❌ Delete user error:', error);
-    res.status(500).json({ 
-      error: 'Failed to delete user',
-      message: error.message 
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Sync admin storage with company storage
+// @desc    Get current user permissions
+// @route   GET /api/users/permissions/me
+// @access  Private
+export const getUserPermissions = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('permissions role company');
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({
+      permissions: user.permissions,
+      role: user.role,
+      company: user.company
+    });
+  } catch (error) {
+    console.error('❌ Get permissions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Get all roles and permissions
+// @route   GET /api/users/permissions
+// @access  Private/Admin
+export const getAllRolesPermissions = async (req, res) => {
+  try {
+    const roles = {
+      superAdmin: {
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: true, 
+        manageFiles: true, manageStorage: true, assignStorage: true
+      },
+      admin: {
+        view: true, upload: true, download: true, delete: true,
+        addUser: true, removeUser: true, changeRole: true,
+        manageFiles: true, manageStorage: true, assignStorage: true
+      },
+      user: {
+        view: true, upload: true, download: true, delete: false,
+        addUser: false, removeUser: false, changeRole: false,
+        manageFiles: false, manageStorage: false, assignStorage: false
+      }
+    };
+    
+    let customRoles = [];
+    try {
+      const dbRoles = await Role.find({ isCustom: true });
+      customRoles = dbRoles.map(role => ({
+        name: role.name,
+        displayName: role.displayName,
+        permissions: role.permissions,
+        isCustom: true
+      }));
+    } catch (err) {
+      console.log('ℹ️ Role model not found, using default roles only');
+    }
+    
+    res.json({ 
+      roles,
+      customRoles
+    });
+  } catch (error) {
+    console.error('❌ Get roles permissions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Get user quota
+// @route   GET /api/users/quota
+// @access  Private
+export const getQuota = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('storageAllocated storageUsed allocatedToUsers username role');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    let available = 0;
+    let total = user.storageAllocated || 0;
+    let used = user.storageUsed || 0;
+    
+    // For admin users, available storage = total - used - allocatedToUsers
+    if (user.role === 'admin') {
+      const allocatedToUsers = user.allocatedToUsers || 0;
+      // This is the correct calculation: total minus what admin has used minus what admin has given to users
+      available = Math.max(0, total - used - allocatedToUsers);
+      
+      console.log('👑 Admin quota calculation:', {
+        username: user.username,
+        total: (total / (1024*1024*1024)).toFixed(2) + 'GB',
+        usedBySelf: (used / (1024*1024*1024)).toFixed(2) + 'GB',
+        givenToUsers: (allocatedToUsers / (1024*1024*1024)).toFixed(2) + 'GB',
+        available: (available / (1024*1024*1024)).toFixed(2) + 'GB'
+      });
+    } else {
+      // For regular users, available = total - used
+      available = Math.max(0, total - used);
+    }
+    
+    // Calculate percentage of used storage (excluding allocations to users)
+    // For admin, this should be (used / total) * 100
+    const percentage = total > 0 ? ((used / total) * 100).toFixed(1) : 0;
+    
+    res.json({
+      used: used,
+      total: total,
+      available: available,
+      percentage: parseFloat(percentage)
+    });
+  } catch (error) {
+    console.error('❌ Get quota error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Update all roles permissions
+// @route   PUT /api/users/permissions
+// @access  Private/SuperAdmin
+export const updateAllRolesPermissions = async (req, res) => {
+  try {
+    const { roles, customRoles } = req.body;
+
+    if (!roles || typeof roles !== 'object') {
+      return res.status(400).json({ error: 'Roles object is required' });
+    }
+
+    console.log('🔄 Updating permissions');
+
+    for (const [roleName, permissions] of Object.entries(roles)) {
+      await User.updateMany(
+        { role: roleName },
+        { $set: { permissions: permissions } }
+      );
+    }
+
+    try {
+      if (Array.isArray(customRoles)) {
+        for (const customRole of customRoles) {
+          await Role.findOneAndUpdate(
+            { name: customRole.name, isCustom: true },
+            {
+              name: customRole.name,
+              displayName: customRole.displayName || customRole.name,
+              permissions: customRole.permissions,
+              isCustom: true
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
+    } catch (err) {
+      console.log('ℹ️ Role model not found, skipping custom role save');
+    }
+
+    res.json({ 
+      message: 'Permissions updated successfully',
+      roles,
+      customRoles
+    });
+  } catch (error) {
+    console.error('❌ Update permissions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Delete custom role
+// @route   DELETE /api/users/permissions/role/:roleName
+// @access  Private/SuperAdmin
+export const deleteCustomRole = async (req, res) => {
+  try {
+    const { roleName } = req.params;
+    
+    try {
+      await Role.deleteOne({ name: roleName, isCustom: true });
+    } catch (err) {
+      console.log('ℹ️ Role model not found');
+    }
+    
+    await User.updateMany(
+      { role: roleName },
+      { 
+        $set: { 
+          role: 'user',
+          storageAllocated: 0,
+          allocatedToUsers: 0
+        } 
+      }
+    );
+    
+    res.json({ message: `Role ${roleName} deleted successfully` });
+  } catch (error) {
+    console.error('❌ Delete role error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// @desc    Sync admin storage with company storage
+// @route   POST /api/users/sync-admin-storage/:companyId
+// @access  Private/Admin
 export const syncAdminStorage = async (req, res) => {
   try {
     const { companyId } = req.params;
@@ -340,12 +473,12 @@ export const syncAdminStorage = async (req, res) => {
       role: 'admin' 
     });
     
-    console.log(`Syncing ${admins.length} admins for company ${company.name}`);
+    console.log(`🔄 Syncing ${admins.length} admins for company ${company.name}`);
     
     for (const admin of admins) {
       admin.storageAllocated = company.totalStorage;
       await admin.save();
-      console.log(`✅ Updated admin ${admin.username} storage to ${company.totalStorage / (1024*1024*1024)}GB`);
+      console.log(`✅ Updated admin ${admin.username} storage to ${(company.totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
     }
     
     res.json({
@@ -358,162 +491,22 @@ export const syncAdminStorage = async (req, res) => {
       updatedAdmins: admins.length
     });
   } catch (error) {
-    console.error('Sync admin storage error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Sync admin storage error:', error);
+    res.status(500).json({ error: error.message });
   }
 };
 
-// Get current user permissions
-export const getUserPermissions = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('permissions role company');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({
-      permissions: user.permissions,
-      role: user.role,
-      company: user.company
-    });
-  } catch (error) {
-    console.error('Get permissions error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-// Get all roles and permissions
-export const getAllRolesPermissions = async (req, res) => {
-  try {
-    const allRoles = await Role.find();
-    
-    const defaultRoles = {};
-    const customRoles = [];
-    
-    allRoles.forEach(role => {
-      if (!role.isCustom) {
-        defaultRoles[role.name] = role.permissions;
-      } else {
-        customRoles.push({
-          name: role.name,
-          displayName: role.displayName,
-          permissions: role.permissions,
-          isCustom: true
-        });
-      }
-    });
-    
-    res.json({ 
-      roles: defaultRoles,
-      customRoles
-    });
-  } catch (error) {
-    console.error('Get all roles & permissions error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-// Update all roles and permissions
-export const updateAllRolesPermissions = async (req, res) => {
-  try {
-    const { roles, customRoles } = req.body;
-
-    if (!roles || typeof roles !== 'object') {
-      return res.status(400).json({ error: 'Roles object is required' });
-    }
-
-    console.log('Updating permissions:', { roles, customRoles });
-
-    for (const [roleName, permissions] of Object.entries(roles)) {
-      await Role.findOneAndUpdate(
-        { name: roleName, isCustom: false },
-        { 
-          name: roleName,
-          displayName: formatRoleName(roleName),
-          permissions: permissions,
-          isCustom: false
-        },
-        { upsert: true, new: true }
-      );
-      
-      await User.updateMany(
-        { role: roleName },
-        { $set: { permissions: permissions } }
-      );
-    }
-
-    if (Array.isArray(customRoles)) {
-      for (const customRole of customRoles) {
-        await Role.findOneAndUpdate(
-          { name: customRole.name, isCustom: true },
-          {
-            name: customRole.name,
-            displayName: customRole.displayName || customRole.name,
-            permissions: customRole.permissions,
-            isCustom: true
-          },
-          { upsert: true, new: true }
-        );
-        
-        await User.updateMany(
-          { role: customRole.name },
-          { $set: { permissions: customRole.permissions } }
-        );
-      }
-    }
-
-    if (Array.isArray(customRoles)) {
-      const customRoleNames = customRoles.map(r => r.name);
-      await Role.deleteMany({ 
-        isCustom: true,
-        name: { $nin: customRoleNames }
-      });
-    }
-
-    res.json({ 
-      message: 'Permissions updated successfully',
-      roles,
-      customRoles
-    });
-  } catch (error) {
-    console.error('Update all roles & permissions error:', error);
-    res.status(500).json({ error: 'Server error: ' + error.message });
-  }
-};
-
-const formatRoleName = (roleName) => {
-  return roleName
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/^./, str => str.toUpperCase());
-};
-
-// Delete custom role
-export const deleteCustomRole = async (req, res) => {
-  try {
-    const { roleName } = req.params;
-    
-    const role = await Role.findOne({ name: roleName });
-    if (role && !role.isCustom) {
-      return res.status(400).json({ error: 'Cannot delete default roles' });
-    }
-    
-    await Role.deleteOne({ name: roleName, isCustom: true });
-    
-    const defaultUserRole = await Role.findOne({ name: 'user', isCustom: false });
-    await User.updateMany(
-      { role: roleName },
-      { 
-        $set: { 
-          role: 'user',
-          permissions: defaultUserRole?.permissions || {},
-          storageAllocated: DEFAULT_USER_STORAGE
-        } 
-      }
-    );
-    
-    res.json({ message: `Role ${roleName} deleted successfully` });
-  } catch (error) {
-    console.error('Delete role error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+// Export all functions
+export default {
+  getAllUsers,
+  getCompanyUsers,
+  createUser,
+  updateUserRole,
+  deleteUser,
+  getUserPermissions,
+  getAllRolesPermissions,
+  updateAllRolesPermissions,
+  deleteCustomRole,
+  syncAdminStorage,
+  getQuota
 };

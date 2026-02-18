@@ -20,6 +20,7 @@ import permissionsRoutes from './routes/permission.js';
 import companyRoutes from './routes/companyRoutes.js';
 import storageRoutes from './routes/storageRoutes.js'; // 👈 NEW
 import './config/passport.js';
+import b2 from './config/b2.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,15 @@ connectDB();
 
 // ===== CREATE EXPRESS APP =====
 const app = express();
+
+// Test B2 connection on startup
+b2.testConnection().then(success => {
+  if (success) {
+    console.log('✅ Backblaze B2 connection verified');
+  } else {
+    console.warn('⚠️  Backblaze B2 connection failed - check your credentials');
+  }
+});
 
 // ===== SESSION & PASSPORT MIDDLEWARE =====
 app.use(session({
@@ -95,7 +105,7 @@ app.use('/api/files', fileRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/companies', companyRoutes);
-app.use('/api/storage', storageRoutes); // 👈 NEW
+app.use('/api/storage', storageRoutes); 
 
 // ===== TEST ENDPOINTS =====
 app.get('/api/test', (req, res) => {

@@ -12,10 +12,6 @@ const roleSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  description: {
-    type: String,
-    default: ''
-  },
   permissions: {
     view: { type: Boolean, default: false },
     upload: { type: Boolean, default: false },
@@ -28,17 +24,9 @@ const roleSchema = new mongoose.Schema({
     manageStorage: { type: Boolean, default: false },
     assignStorage: { type: Boolean, default: false }
   },
-  permissionIds: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Permission'
-  }],
   isCustom: {
     type: Boolean,
     default: false
-  },
-  priority: {
-    type: Number,
-    default: 999
   }
 }, { timestamps: true });
 

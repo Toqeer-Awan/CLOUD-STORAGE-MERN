@@ -1,17 +1,13 @@
 import express from 'express';
 import { protect, admin } from '../middleware/auth.js';
+import { getAllRoles, getRolesPermissions } from '../controllers/roleController.js';
 
 const router = express.Router();
 
 router.use(protect);
 router.use(admin);
 
-// Placeholder route - we'll implement roles later
-router.get('/', (req, res) => {
-  res.json({
-    roles: ['admin', 'user'],
-    message: 'Roles endpoint - implement as needed'
-  });
-});
+router.get('/', getAllRoles);
+router.get('/permissions', getRolesPermissions);
 
 export default router;

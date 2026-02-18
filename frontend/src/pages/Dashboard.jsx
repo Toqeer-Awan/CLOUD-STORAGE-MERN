@@ -10,7 +10,8 @@ import useToast from '../hooks/useToast';
 import {
   MdStorage, MdFolder, MdPeople,
   MdCloudUpload, MdRefresh, MdImage, MdVideoLibrary,
-  MdPictureAsPdf, MdDescription, MdInsertDriveFile, MdDashboard
+  MdPictureAsPdf, MdDescription, MdInsertDriveFile, MdDashboard,
+  MdUpload
 } from "react-icons/md";
 
 const Dashboard = () => {
@@ -236,12 +237,13 @@ const Dashboard = () => {
             </div>
           </div>
           
+          {/* Changed from Refresh button to Upload button */}
           <button
-            onClick={fetchDashboardData}
+            onClick={() => navigate('/upload')}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700 text-white rounded-lg transition-colors shadow-sm"
           >
-            <MdRefresh size={20} />
-            Refresh
+            <MdUpload size={20} />
+            Upload Files
           </button>
         </div>
       </div>

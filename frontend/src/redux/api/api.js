@@ -58,21 +58,17 @@ export const userAPI = {
   getAllPermissions: () => API.get('/users/permissions'),
   updatePermissions: (data) => API.put('/users/permissions', data),
   deleteCustomRole: (roleName) => API.delete(`/users/permissions/role/${roleName}`),
+  getQuota: () => API.get('/users/quota'),
 };
 
 // File APIs
 export const fileAPI = {
-  // Get current user's files only
   getAllFiles: () => API.get('/files'),
-  
-  // Upload file to S3
-  uploadToS3: (formData, onUploadProgress) =>
-    API.post('/files/upload/s3', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress,
-    }),
-  
-  // Delete user's own file
+  initUpload: (data) => API.post('/files/init', data),
+  finalizeUpload: (data) => API.post('/files/finalize', data),
+  getDownloadUrl: (id) => API.get(`/files/${id}/download-url`),
+  getViewUrl: (id) => API.get(`/files/${id}/view-url`),
+  getPendingUploads: () => API.get('/files/pending'),
   deleteFile: (id) => API.delete(`/files/${id}`),
 };
 
@@ -83,17 +79,13 @@ export const companyAPI = {
   getCompanyById: (id) => API.get(`/companies/${id}`),
   updateCompanyStorage: (id, data) => API.put(`/companies/${id}/storage`, data),
   deleteCompany: (id) => API.delete(`/companies/${id}`),
+  getCompanySummary: () => API.get('/companies/summary'),
 };
 
-// 🔥 NEW: Storage Management APIs
+// Storage Management APIs
 export const storageAPI = {
-  // SuperAdmin allocates storage to company
   allocateToCompany: (data) => API.post('/storage/allocate-to-company', data),
-  
-  // Admin allocates storage to user
   allocateToUser: (data) => API.post('/storage/allocate-to-user', data),
-  
-  // Get storage usage
   getUserStorage: (userId) => API.get(`/storage/user/${userId}`),
   getCompanyStorage: (companyId) => API.get(`/storage/company/${companyId}`),
 };

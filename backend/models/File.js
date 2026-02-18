@@ -19,22 +19,29 @@ const fileSchema = new mongoose.Schema({
   },
   storageType: {
     type: String,
-    enum: ['local', 'cloudinary', 's3'],
-    default: 'local'
+    enum: ['b2'],
+    default: 'b2'
   },
-  storageUrl: {
+  storageKey: {
     type: String,
-    required: true
+    required: true,
+    unique: true  // This creates an index automatically
   },
-  downloadUrl: {
-    type: String
+  storageUrl: String,
+  
+  // Upload tracking
+  uploadId: String,
+  uploadStatus: {
+    type: String,
+    enum: ['pending', 'uploading', 'completed', 'failed'],
+    default: 'pending'
   },
-  publicId: {
-    type: String
-  },
-  s3Key: {
-    type: String
-  },
+  uploadInitiatedAt: Date,
+  uploadCompletedAt: Date,
+  
+  // Verification
+  etag: String,
+  
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -45,21 +52,25 @@ const fileSchema = new mongoose.Schema({
     ref: 'Company',
     required: true
   },
-  uploadDate: {
-    type: Date,
-    default: Date.now
-  },
-  isPublic: {
+  isDeleted: {
     type: Boolean,
     default: false
   },
-  tags: [{
-    type: String
-  }]
-});
+  deletedAt: Date
+}, { timestamps: true });
 
-// Index for faster queries
-fileSchema.index({ company: 1, uploadDate: -1 });
+// Indexes for performance - REMOVE the duplicate storageKey index
+// Keep only these indexes:
+fileSchema.index({ company: 1, uploadStatus: 1 });
+fileSchema.index({ uploadedBy: 1, createdAt: -1 });
+fileSchema.index({ uploadId: 1 });
+fileSchema.index({ isDeleted: 1 });
+
+// Virtual for file URL
+fileSchema.virtual('url').get(function() {
+  if (this.storageUrl) return this.storageUrl;
+  return `https://${process.env.B2_BUCKET_NAME}.s3.${process.env.B2_REGION}.backblazeb2.com/${this.storageKey}`;
+});
 
 const File = mongoose.model('File', fileSchema);
 export default File;

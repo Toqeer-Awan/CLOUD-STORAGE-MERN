@@ -5,10 +5,12 @@ import {
   MdInsertDriveFile, MdDownload, MdVisibility, MdCloud
 } from 'react-icons/md';
 import useToast from '../hooks/useToast';
+import downloadService from '../services/downloadService';
 
 const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
   const { user } = useSelector((state) => state.auth);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [viewingId, setViewingId] = useState(null);
   const toast = useToast();
 
   const getFileIcon = (type) => {
@@ -41,32 +43,28 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
     setDownloadingId(fileId);
     
     try {
-      const fileUrl = file.downloadUrl || file.storageUrl;
-      if (!fileUrl) {
-        toast.error('Download URL not available');
-        return;
-      }
-
-      const link = document.createElement('a');
-      link.href = fileUrl;
-      link.download = file.name || 'download';
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast.success(`Downloading ${file.name}`);
+      await downloadService.downloadFile(fileId, file.name || file.originalName);
+      toast.success(`Downloading ${file.name || file.originalName}`);
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Download failed');
+      toast.error(error.message || 'Download failed');
     } finally {
       setTimeout(() => setDownloadingId(null), 800);
     }
   };
 
-  const handleView = (file) => {
-    const viewUrl = file.storageUrl || file.preview;
-    if (viewUrl) window.open(viewUrl, '_blank');
+  const handleView = async (file) => {
+    const fileId = file.id || file._id;
+    setViewingId(fileId);
+    
+    try {
+      await downloadService.viewFile(fileId, file.name || file.originalName);
+    } catch (error) {
+      console.error('View error:', error);
+      toast.error(error.message || 'Failed to open file');
+    } finally {
+      setTimeout(() => setViewingId(null), 800);
+    }
   };
 
   if (!files.length) {
@@ -104,40 +102,47 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
                 <td className="py-3 px-4">
                   <div className="flex items-center">
                     <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded mr-3">
-                      {getFileIcon(file.type)}
+                      {getFileIcon(file.type || file.mimetype)}
                     </div>
                     <div>
                       <p className="font-medium text-gray-800 dark:text-white truncate max-w-xs">
-                        {file.name}
+                        {file.name || file.originalName}
                       </p>
                       <div className="flex items-center gap-1 mt-1">
                         <MdCloud className="text-xs text-orange-500 dark:text-orange-400" />
-                        <p className="text-xs text-gray-500 dark:text-gray-500">S3</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500">Backblaze B2</p>
                       </div>
                     </div>
                   </div>
                 </td>
                 <td className="py-3 px-4">
                   <span className="px-3 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full text-sm">
-                    {getFileType(file.type)}
+                    {getFileType(file.type || file.mimetype)}
                   </span>
                 </td>
                 <td className="py-3 px-4 text-gray-600 dark:text-gray-400">
-                  {typeof file.size === 'number' 
-                    ? formatBytes(file.size * 1024 * 1024) 
-                    : file.size || '0 MB'}
+                  {formatBytes(file.size)}
                 </td>
                 <td className="py-3 px-4 text-gray-600 dark:text-gray-400 text-sm">
-                  {new Date(file.uploadedAt).toLocaleDateString()}
+                  {new Date(file.uploadedAt || file.uploadDate).toLocaleDateString()}
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleView(file)}
-                      className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                      disabled={isUploading || viewingId === fileId}
+                      className={`p-2 rounded-lg transition-colors ${
+                        isUploading || viewingId === fileId
+                          ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                          : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                      }`}
                       title="View"
                     >
-                      <MdVisibility size={18} />
+                      {viewingId === fileId ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      ) : (
+                        <MdVisibility size={18} />
+                      )}
                     </button>
                     
                     <button

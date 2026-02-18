@@ -17,13 +17,14 @@ import UserList from './pages/UserList';
 import RolesPermissions from './pages/RolePermissions';
 import CompanyDashboard from './components/CompanyDashboard';
 import AdminCompanies from './components/AdminCompanies';
+// Remove this line: import UserDashboard from './components/UserDashboard';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/login" />;
 };
 
-// 🔒 Only SuperAdmin can access these routes
+// Only SuperAdmin can access these routes
 const SuperAdminRoute = ({ children }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
@@ -44,6 +45,17 @@ const AdminRoute = ({ children }) => {
   
   return children;
 };
+
+// Remove this entire block
+// const UserRoute = ({ children }) => {
+//   const user = JSON.parse(localStorage.getItem('user'));
+//   const token = localStorage.getItem('token');
+//   
+//   if (!token) return <Navigate to="/login" />;
+//   if (user?.role !== 'user') return <Navigate to="/" />;
+//   
+//   return children;
+// };
 
 function App() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -68,35 +80,37 @@ function App() {
                 <Route path="upload" element={<Upload />} />
                 <Route path="files" element={<AllFiles />} />
                 
-                {/* 🔒 Company routes - accessible by admin and superAdmin */}
+                {/* Remove this entire block */}
+                {/* <Route path="my-storage" element={
+                  <UserRoute>
+                    <UserDashboard />
+                  </UserRoute>
+                /> */}
+                
                 <Route path="company" element={
                   <AdminRoute>
                     <CompanyDashboard />
                   </AdminRoute>
                 } />
                 
-                {/* 🔒 Add User - accessible by admin and superAdmin */}
                 <Route path="users/add" element={
                   <AdminRoute>
                     <AddUser />
                   </AdminRoute>
                 } />
                 
-                {/* 🔒 User List - ONLY SuperAdmin can access */}
                 <Route path="users/list" element={
                   <SuperAdminRoute>
                     <UserList />
                   </SuperAdminRoute>
                 } />
                 
-                {/* 🔒 Roles & Permissions - ONLY SuperAdmin can access */}
                 <Route path="roles" element={
                   <SuperAdminRoute>
                     <RolesPermissions />
                   </SuperAdminRoute>
                 } />
                 
-                {/* 🔒 Admin Companies - ONLY SuperAdmin can access */}
                 <Route path="admin/companies" element={
                   <SuperAdminRoute>
                     <AdminCompanies />

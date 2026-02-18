@@ -1,30 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import FileTable from '../components/FileTable';
 import { addFile } from '../redux/slices/fileSlice';
-import { fileAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
-import { MdUpload, MdCloud, MdWarning } from "react-icons/md";
+import uploadService from '../services/uploadService';
+import { userAPI } from '../redux/api/api';
+import { MdUpload, MdCloud, MdWarning, MdStorage } from "react-icons/md";
 
 const Upload = () => {
   const [files, setLocalFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const dispatch = useDispatch();
+  const [quota, setQuota] = useState({
+    used: 0,
+    total: 0,
+    available: 0,
+    percentage: 0
+  });
+  const [loadingQuota, setLoadingQuota] = useState(true);
+  const [quotaError, setQuotaError] = useState(false);
   const { user } = useSelector((state) => state.auth);
   const toast = useToast();
+
+  // Fetch fresh quota data on component mount
+  const fetchQuota = async () => {
+    try {
+      setLoadingQuota(true);
+      setQuotaError(false);
+      console.log('📡 Fetching quota for user:', user?._id);
+      const response = await userAPI.getQuota();
+      console.log('📊 Quota Data:', response.data);
+      setQuota(response.data);
+    } catch (error) {
+      console.error('❌ Failed to fetch quota:', error);
+      setQuotaError(true);
+      // Set default values based on user role if API fails
+      if (user?.role === 'admin') {
+        setQuota({
+          used: 0,
+          total: 50 * 1024 * 1024 * 1024, // 50GB
+          available: 50 * 1024 * 1024 * 1024,
+          percentage: 0
+        });
+      } else if (user?.role === 'user') {
+        // For regular users, they might have allocated storage
+        setQuota({
+          used: 0,
+          total: user?.storageAllocated || 0,
+          available: user?.storageAllocated || 0,
+          percentage: 0
+        });
+      }
+    } finally {
+      setLoadingQuota(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchQuota();
+    }
+  }, [user]);
 
   const handleFileSelect = (selectedFiles) => {
     const newFiles = Array.from(selectedFiles).map(file => ({
       id: Date.now() + Math.random(),
       file,
       name: file.name,
-      size: (file.size / (1024 * 1024)).toFixed(2),
+      size: file.size,
+      formattedSize: formatBytes(file.size),
       type: file.type,
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
       progress: 0,
-      status: 'pending'
+      status: 'pending',
+      error: null
     }));
+    
+    // Check total size against available quota
+    const totalSize = newFiles.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > quota.available) {
+      toast.error(`Not enough space. Available: ${formatBytes(quota.available)}`);
+      return;
+    }
+    
     setLocalFiles(prev => [...prev, ...newFiles]);
     toast.success(`${newFiles.length} file(s) selected`);
   };
@@ -52,23 +109,17 @@ const Upload = () => {
 
   const removeFile = (fileId) => {
     setLocalFiles(prev => prev.filter(file => file.id !== fileId));
-    toast.info('File removed');
   };
 
   const uploadFile = async (fileData) => {
-    const formData = new FormData();
-    formData.append('file', fileData.file);
-
     try {
-      // Update progress
       setLocalFiles(prev => prev.map(f => 
-        f.id === fileData.id ? { ...f, status: 'uploading', progress: 50 } : f
+        f.id === fileData.id ? { ...f, status: 'uploading' } : f
       ));
 
-      const response = await fileAPI.uploadToS3(formData, (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+      const result = await uploadService.uploadFile(fileData.file, ({ progress }) => {
         setLocalFiles(prev => prev.map(f => 
-          f.id === fileData.id ? { ...f, progress: percentCompleted } : f
+          f.id === fileData.id ? { ...f, progress } : f
         ));
       });
 
@@ -76,17 +127,12 @@ const Upload = () => {
         f.id === fileData.id ? { ...f, progress: 100, status: 'completed' } : f
       ));
 
-      dispatch(addFile(response.data.file));
-      return { success: true, fileName: fileData.name };
+      return { success: true, file: result.file };
     } catch (error) {
       setLocalFiles(prev => prev.map(f => 
-        f.id === fileData.id ? { ...f, status: 'failed', progress: 0 } : f
+        f.id === fileData.id ? { ...f, status: 'failed', error: error.message } : f
       ));
-      return { 
-        success: false, 
-        fileName: fileData.name, 
-        error: error.response?.data?.error || error.message 
-      };
+      return { success: false, error: error.message };
     }
   };
 
@@ -108,6 +154,8 @@ const Upload = () => {
 
     if (successful > 0) {
       toast.success(`${successful} file(s) uploaded successfully`);
+      // Refresh quota after successful uploads
+      await fetchQuota();
     }
     if (failed > 0) {
       toast.error(`${failed} file(s) failed to upload`);
@@ -115,16 +163,31 @@ const Upload = () => {
 
     // Remove successful files from list
     setLocalFiles(prev => prev.filter(file => 
-      !results.some(r => r.success && r.fileName === file.name)
+      !results.some(r => r.success && r.file?.name === file.name)
     ));
 
     setIsUploading(false);
   };
 
-  // Check if user has upload permission
-  const canUpload = user?.role === 'superAdmin' || user?.permissions?.upload === true;
+  const formatBytes = (bytes) => {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return '0 GB';
+    if (bytes === 0) return '0 GB';
+    const gb = bytes / (1024 * 1024 * 1024);
+    return gb.toFixed(2) + ' GB';
+  };
 
-  if (!canUpload) {
+  // Determine color based on quota percentage
+  const getQuotaColor = () => {
+    const percentage = quota.percentage || 0;
+    if (percentage >= 90) return 'bg-red-500';
+    if (percentage >= 70) return 'bg-yellow-500';
+    return 'bg-green-500';
+  };
+
+  // Check if user can upload
+  const canUploadAny = user?.role === 'superAdmin' || user?.permissions?.upload === true;
+
+  if (!canUploadAny) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
         <MdWarning className="mx-auto text-5xl text-red-500 mb-4" />
@@ -136,9 +199,21 @@ const Upload = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header with Quota Info */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">Upload Files to S3</h1>
-        <p className="text-gray-600 dark:text-gray-400">Upload files to Amazon S3 cloud storage</p>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+              Upload to Cloud Storage
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Files upload directly to Backblaze B2
+            </p>
+          </div>
+          
+          {/* Quota Card - Now Dynamic */}
+          
+        </div>
       </div>
 
       {/* Upload Zone */}
@@ -166,13 +241,13 @@ const Upload = () => {
           multiple 
           onChange={handleFileInput} 
           className="hidden" 
-          disabled={isUploading}
+          disabled={isUploading || quota.available <= 0}
         />
         
         <label
           htmlFor="file-upload"
           className={`inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg cursor-pointer transition-colors ${
-            isUploading 
+            isUploading || quota.available <= 0
               ? 'opacity-50 cursor-not-allowed' 
               : 'hover:bg-orange-700'
           }`}
@@ -181,33 +256,27 @@ const Upload = () => {
         </label>
         
         <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">
-          Maximum file size: 100MB per file
+          Max file size: 5GB (multipart upload for larger files)
         </p>
       </div>
 
-      {/* File List Header */}
+      {/* File List */}
       {files.length > 0 && (
-        <div className="flex justify-between items-center">
-          <span className="text-gray-700 dark:text-gray-300 font-medium">
-            {files.length} file(s) selected
-          </span>
-          
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setLocalFiles([]);
-                toast.info('All files cleared');
-              }}
-              disabled={isUploading}
-              className="px-5 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
-            >
-              Clear All
-            </button>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <div>
+              <span className="text-gray-700 dark:text-gray-300 font-medium">
+                {files.length} file(s) selected
+              </span>
+              <span className="ml-4 text-sm text-gray-500">
+                Total: {formatBytes(files.reduce((sum, f) => sum + f.size, 0))}
+              </span>
+            </div>
             
             <button
               onClick={handleUpload}
               disabled={isUploading}
-              className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center transition-colors"
+              className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center"
             >
               {isUploading ? (
                 <>
@@ -216,22 +285,71 @@ const Upload = () => {
                 </>
               ) : (
                 <>
-                  <MdUpload className="mr-2" /> Upload to S3
+                  <MdUpload className="mr-2" /> Upload to B2
                 </>
               )}
             </button>
           </div>
-        </div>
-      )}
 
-      {/* File Table */}
-      {files.length > 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-          <FileTable 
-            files={files} 
-            onRemoveFile={removeFile} 
-            isUploading={isUploading} 
-          />
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {files.map(file => (
+              <div key={file.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center">
+                      <span className="text-gray-800 dark:text-white font-medium">{file.name}</span>
+                      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                        ({file.formattedSize})
+                      </span>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    {file.status === 'uploading' && (
+                      <div className="mt-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-orange-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${file.progress}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{file.progress}% uploaded</p>
+                      </div>
+                    )}
+                    
+                    {/* Error message */}
+                    {file.status === 'failed' && (
+                      <p className="mt-2 text-sm text-red-600 dark:text-red-400">
+                        Failed: {file.error || 'Upload failed'}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* Status icon */}
+                  <div className="ml-4">
+                    {file.status === 'completed' && (
+                      <span className="text-green-500">✅</span>
+                    )}
+                    {file.status === 'failed' && (
+                      <button
+                        onClick={() => uploadFile(file)}
+                        className="text-orange-600 hover:text-orange-700 text-sm"
+                      >
+                        Retry
+                      </button>
+                    )}
+                    {file.status === 'pending' && (
+                      <button
+                        onClick={() => removeFile(file.id)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

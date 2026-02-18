@@ -4,11 +4,13 @@ import {
   allocateStorageToCompany,
   allocateStorageToUser,
   getUserStorage,
-  getCompanyStorage
+  getCompanyStorage,
+  getMyStorage
 } from '../controllers/storageController.js';
 
 const router = express.Router();
 
+// All routes require authentication
 router.use(protect);
 
 // Super Admin routes
@@ -27,8 +29,13 @@ router.post('/allocate-to-user', (req, res, next) => {
   next();
 }, allocateStorageToUser);
 
-// Get storage info
+// Get my storage (current user)
+router.get('/me', getMyStorage);
+
+// Get storage info for specific user
 router.get('/user/:userId', getUserStorage);
+
+// Get storage info for company
 router.get('/company/:companyId', getCompanyStorage);
 
 export default router;
