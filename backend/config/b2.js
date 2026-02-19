@@ -1,12 +1,8 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, HeadObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import AWS from 'aws-sdk';
 import crypto from 'crypto';
 
-// Backblaze B2 is S3-compatible
-const B2_ENDPOINT = process.env.B2_ENDPOINT || 'https://s3.us-west-002.backblazeb2.com';
-
 // Validate required environment variables
-const requiredEnvVars = ['B2_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME'];
+const requiredEnvVars = ['B2_KEY_ID', 'B2_APPLICATION_KEY', 'B2_BUCKET_NAME', 'B2_REGION'];
 requiredEnvVars.forEach(varName => {
   if (!process.env[varName]) {
     console.error(`❌ Missing required environment variable: ${varName}`);
@@ -14,32 +10,73 @@ requiredEnvVars.forEach(varName => {
   }
 });
 
-const b2Client = new S3Client({
+// Construct endpoint from region - MAKE SURE TO INCLUDE https://
+const B2_ENDPOINT = process.env.B2_ENDPOINT || `https://s3.${process.env.B2_REGION}.backblazeb2.com`;
+
+console.log('📡 B2 Configuration:', {
   endpoint: B2_ENDPOINT,
-  region: process.env.B2_REGION || 'us-west-002',
+  region: process.env.B2_REGION,
+  bucket: process.env.B2_BUCKET_NAME,
+  keyId: process.env.B2_KEY_ID ? '✓ Set' : '✗ Missing'
+});
+
+const b2Client = new AWS.S3({
+  endpoint: B2_ENDPOINT,
+  region: process.env.B2_REGION,
   credentials: {
     accessKeyId: process.env.B2_KEY_ID,
     secretAccessKey: process.env.B2_APPLICATION_KEY
   },
-  forcePathStyle: true,
-  maxAttempts: 3
+  signatureVersion: 'v4',
+  s3ForcePathStyle: true,
+  maxRetries: 3,
+  httpOptions: {
+    timeout: 30000,
+    connectTimeout: 5000
+  }
 });
 
 const BUCKET_NAME = process.env.B2_BUCKET_NAME;
 
+// Test the connection - FIXED FUNCTION NAME
+export const testConnection = async () => {
+  try {
+    // Try to list objects (limit 1) to test connection
+    const params = {
+      Bucket: BUCKET_NAME,
+      MaxKeys: 1
+    };
+    await b2Client.listObjectsV2(params).promise();
+    console.log('✅ Successfully connected to Backblaze B2');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to connect to Backblaze B2:', error.message);
+    return false;
+  }
+};
+
 // Generate presigned upload URL (PUT)
 export const generatePresignedUploadUrl = async (key, contentType, expiresIn = 900) => {
   try {
-    const command = new PutObjectCommand({
+    const params = {
       Bucket: BUCKET_NAME,
       Key: key,
-      ContentType: contentType
+      ContentType: contentType,
+      Expires: expiresIn
+    };
+    
+    console.log('🔑 Generating upload URL for:', { 
+      key, 
+      contentType,
+      bucket: BUCKET_NAME,
+      endpoint: B2_ENDPOINT
     });
     
-    const url = await getSignedUrl(b2Client, command, { expiresIn });
+    const url = await b2Client.getSignedUrlPromise('putObject', params);
+    console.log('✅ Upload URL generated successfully');
     return url;
   } catch (error) {
-    console.error('Error generating presigned upload URL:', error);
+    console.error('❌ Error generating presigned upload URL:', error);
     throw new Error(`Failed to generate upload URL: ${error.message}`);
   }
 };
@@ -47,16 +84,17 @@ export const generatePresignedUploadUrl = async (key, contentType, expiresIn = 9
 // Generate presigned download URL (GET)
 export const generatePresignedDownloadUrl = async (key, expiresIn = 300) => {
   try {
-    const command = new GetObjectCommand({
+    const params = {
       Bucket: BUCKET_NAME,
       Key: key,
+      Expires: expiresIn,
       ResponseContentDisposition: 'attachment'
-    });
+    };
     
-    const url = await getSignedUrl(b2Client, command, { expiresIn });
+    const url = await b2Client.getSignedUrlPromise('getObject', params);
     return url;
   } catch (error) {
-    console.error('Error generating presigned download URL:', error);
+    console.error('❌ Error generating presigned download URL:', error);
     throw new Error(`Failed to generate download URL: ${error.message}`);
   }
 };
@@ -64,130 +102,17 @@ export const generatePresignedDownloadUrl = async (key, expiresIn = 300) => {
 // Generate presigned view URL (GET without download)
 export const generatePresignedViewUrl = async (key, expiresIn = 300) => {
   try {
-    const command = new GetObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
-    });
-    
-    const url = await getSignedUrl(b2Client, command, { expiresIn });
-    return url;
-  } catch (error) {
-    console.error('Error generating presigned view URL:', error);
-    throw new Error(`Failed to generate view URL: ${error.message}`);
-  }
-};
-
-// Initiate multipart upload
-export const initiateMultipartUpload = async (key, contentType) => {
-  try {
-    const command = new CreateMultipartUploadCommand({
+    const params = {
       Bucket: BUCKET_NAME,
       Key: key,
-      ContentType: contentType
-    });
-    
-    const response = await b2Client.send(command);
-    return response.UploadId;
-  } catch (error) {
-    console.error('Error initiating multipart upload:', error);
-    throw new Error(`Failed to initiate multipart upload: ${error.message}`);
-  }
-};
-
-// Generate presigned URL for multipart part
-export const generatePresignedPartUrl = async (key, uploadId, partNumber, expiresIn = 900) => {
-  try {
-    const command = new UploadPartCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      UploadId: uploadId,
-      PartNumber: partNumber
-    });
-    
-    const url = await getSignedUrl(b2Client, command, { expiresIn });
-    return url;
-  } catch (error) {
-    console.error('Error generating presigned part URL:', error);
-    throw new Error(`Failed to generate part URL: ${error.message}`);
-  }
-};
-
-// Complete multipart upload
-export const completeMultipartUpload = async (key, uploadId, parts) => {
-  try {
-    const command = new CompleteMultipartUploadCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      UploadId: uploadId,
-      MultipartUpload: {
-        Parts: parts.map(p => ({
-          ETag: p.ETag,
-          PartNumber: p.PartNumber
-        }))
-      }
-    });
-    
-    const response = await b2Client.send(command);
-    return response.Location;
-  } catch (error) {
-    console.error('Error completing multipart upload:', error);
-    throw new Error(`Failed to complete multipart upload: ${error.message}`);
-  }
-};
-
-// Abort multipart upload
-export const abortMultipartUpload = async (key, uploadId) => {
-  try {
-    const command = new AbortMultipartUploadCommand({
-      Bucket: BUCKET_NAME,
-      Key: key,
-      UploadId: uploadId
-    });
-    
-    await b2Client.send(command);
-    return true;
-  } catch (error) {
-    console.error('Error aborting multipart upload:', error);
-    throw new Error(`Failed to abort multipart upload: ${error.message}`);
-  }
-};
-
-// Get object metadata (HEAD)
-export const getObjectMetadata = async (key) => {
-  try {
-    const command = new HeadObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
-    });
-    
-    const response = await b2Client.send(command);
-    return {
-      size: response.ContentLength,
-      etag: response.ETag ? response.ETag.replace(/"/g, '') : null,
-      contentType: response.ContentType,
-      lastModified: response.LastModified,
-      metadata: response.Metadata
+      Expires: expiresIn
     };
-  } catch (error) {
-    if (error.name === 'NotFound') return null;
-    console.error('Error getting object metadata:', error);
-    throw new Error(`Failed to get object metadata: ${error.message}`);
-  }
-};
-
-// Delete object
-export const deleteObject = async (key) => {
-  try {
-    const command = new DeleteObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: key
-    });
     
-    await b2Client.send(command);
-    return true;
+    const url = await b2Client.getSignedUrlPromise('getObject', params);
+    return url;
   } catch (error) {
-    console.error('Error deleting object:', error);
-    throw new Error(`Failed to delete object: ${error.message}`);
+    console.error('❌ Error generating presigned view URL:', error);
+    throw new Error(`Failed to generate view URL: ${error.message}`);
   }
 };
 
@@ -199,38 +124,45 @@ export const generateStorageKey = (userId, originalName, folder = 'uploads') => 
   return `${folder}/user-${userId}/${timestamp}-${random}-${safeName}`;
 };
 
-// Test connection
-export const testConnection = async () => {
+// Get object metadata
+export const getObjectMetadata = async (key) => {
   try {
-    // Try to list buckets (or just head the bucket)
-    const command = new HeadObjectCommand({
-      Bucket: BUCKET_NAME,
-      Key: 'test-connection.txt'
-    });
-    
-    await b2Client.send(command).catch(() => {
-      // It's fine if the file doesn't exist, we just want to test the connection
-      console.log('✅ Successfully connected to Backblaze B2');
-      return true;
-    });
-    
-    return true;
+    const params = { Bucket: BUCKET_NAME, Key: key };
+    const result = await b2Client.headObject(params).promise();
+    return {
+      size: result.ContentLength,
+      etag: result.ETag ? result.ETag.replace(/"/g, '') : null,
+      contentType: result.ContentType,
+      lastModified: result.LastModified
+    };
   } catch (error) {
-    console.error('❌ Failed to connect to Backblaze B2:', error);
-    return false;
+    if (error.code === 'NotFound') {
+      return null;
+    }
+    console.error('❌ Error getting object metadata:', error);
+    throw error;
   }
 };
 
+// Delete object
+export const deleteObject = async (key) => {
+  try {
+    const params = { Bucket: BUCKET_NAME, Key: key };
+    await b2Client.deleteObject(params).promise();
+    return true;
+  } catch (error) {
+    console.error('❌ Error deleting object:', error);
+    throw error;
+  }
+};
+
+// Export all functions
 export default {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
   generatePresignedViewUrl,
-  initiateMultipartUpload,
-  generatePresignedPartUrl,
-  completeMultipartUpload,
-  abortMultipartUpload,
+  generateStorageKey,
   getObjectMetadata,
   deleteObject,
-  generateStorageKey,
-  testConnection
+  testConnection  // Make sure this is included
 };
