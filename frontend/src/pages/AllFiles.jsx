@@ -7,7 +7,7 @@ import { fileAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
 import { 
   MdSearch, MdFilterList, MdSort, MdRefresh, 
-  MdStorage, MdPerson, MdImage, MdVideoLibrary,
+  MdStorage, MdImage, MdVideoLibrary,
   MdPictureAsPdf, MdDescription, MdInsertDriveFile
 } from "react-icons/md";
 
@@ -40,23 +40,27 @@ const AllFiles = () => {
     setLoading(true);
     try {
       const response = await fileAPI.getAllFiles();
-      console.log('Fetched your files:', response.data);
+      console.log('📁 Fetched files:', response.data);
       
+      // Format the files for display
       const formattedFiles = response.data.map(file => ({
         id: file._id,
         _id: file._id,
-        name: file.originalName,
-        size: (file.size || 0) / (1024 * 1024),
-        type: file.mimetype,
+        name: file.originalName || file.filename || 'Unnamed file',
+        // Extract just the filename without path for display
+        displayName: (file.originalName || file.filename || '').split('/').pop(),
+        path: file.originalName || file.filename || '',
+        size: file.size || 0,
+        type: file.mimetype || '',
         storageUrl: file.storageUrl,
         downloadUrl: file.downloadUrl,
-        uploadedAt: file.uploadDate,
+        uploadedAt: file.uploadDate || file.createdAt || new Date(),
       }));
       
       dispatch(setFiles(formattedFiles));
       toast.success('Files refreshed');
     } catch (error) {
-      console.error('Fetch files error:', error);
+      console.error('❌ Fetch files error:', error);
       toast.error('Failed to fetch files');
     } finally {
       setLoading(false);
@@ -84,7 +88,7 @@ const AllFiles = () => {
       toast.dismiss(loadingToast);
       const errorMessage = error.response?.data?.error || 'Failed to delete file';
       toast.error(errorMessage);
-      console.error('Delete error:', error.response?.data || error);
+      console.error('❌ Delete error:', error.response?.data || error);
     }
   };
 
@@ -96,24 +100,33 @@ const AllFiles = () => {
     return 'other';
   };
 
+  // Filter and sort files
   const filteredFiles = files.filter(file => {
     const category = getFileCategory(file.type);
+    const fileName = file.displayName || file.name || '';
     
     // Search filter
-    const matchesSearch = file.name?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = fileName.toLowerCase().includes(search.toLowerCase());
     
     // Type filter
     const matchesType = filterType === 'all' || category === filterType;
     
     return matchesSearch && matchesType;
   }).sort((a, b) => {
-    if (sortBy === 'name') return a.name?.localeCompare(b.name);
-    if (sortBy === 'size') return b.size - a.size;
-    return new Date(b.uploadedAt) - new Date(a.uploadedAt);
+    if (sortBy === 'name') {
+      const nameA = (a.displayName || a.name || '').toLowerCase();
+      const nameB = (b.displayName || b.name || '').toLowerCase();
+      return nameA.localeCompare(nameB);
+    }
+    if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+    // Default sort by date (newest first)
+    return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
   });
 
   // Calculate stats for filtered files
-  const totalSize = filteredFiles.reduce((acc, file) => acc + file.size, 0);
+  const totalSize = filteredFiles.reduce((acc, file) => acc + (file.size || 0), 0);
+  const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
+  
   const imageCount = filteredFiles.filter(f => getFileCategory(f.type) === 'image').length;
   const videoCount = filteredFiles.filter(f => getFileCategory(f.type) === 'video').length;
   const pdfCount = filteredFiles.filter(f => getFileCategory(f.type) === 'pdf').length;
@@ -122,7 +135,6 @@ const AllFiles = () => {
 
   const handleFilterChange = (type) => {
     setFilterType(type);
-    // Update URL with filter
     if (type === 'all') {
       navigate('/files');
     } else {
@@ -150,7 +162,7 @@ const AllFiles = () => {
             </h1>
             <div className="flex flex-wrap items-center gap-4">
               <p className="text-gray-600 dark:text-gray-400">
-                {filteredFiles.length} files • {totalSize.toFixed(2)} MB
+                {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'} • {totalSizeMB} MB
               </p>
               {filterType !== 'all' && (
                 <span className="px-3 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400 text-sm rounded-full">

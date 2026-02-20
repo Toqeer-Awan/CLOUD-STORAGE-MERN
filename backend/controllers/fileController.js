@@ -7,8 +7,6 @@ import Company from "../models/Company.js";
 // @access  Private
 export const getFiles = async (req, res) => {
   try {
-    console.log('📁 Get files - User:', req.user.id);
-
     const files = await File.find({ 
       uploadedBy: req.user.id,
       isDeleted: false,
@@ -18,7 +16,11 @@ export const getFiles = async (req, res) => {
       .populate("company", "name")
       .sort({ uploadDate: -1 });
     
-    console.log(`✅ User ${req.user.id} found ${files.length} files`);
+    // Log to check file sizes
+    files.forEach(file => {
+      console.log(`File: ${file.originalName}, Size: ${file.size} bytes`);
+    });
+    
     res.json(files);
   } catch (error) {
     console.error("❌ Get files error:", error);

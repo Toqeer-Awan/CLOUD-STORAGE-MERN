@@ -88,7 +88,7 @@ export const generatePresignedDownloadUrl = async (key, expiresIn = 300) => {
       Bucket: BUCKET_NAME,
       Key: key,
       Expires: expiresIn,
-      ResponseContentDisposition: 'attachment'
+      ResponseContentDisposition: 'attachment'  // This forces download
     };
     
     const url = await b2Client.getSignedUrlPromise('getObject', params);
@@ -106,6 +106,7 @@ export const generatePresignedViewUrl = async (key, expiresIn = 300) => {
       Bucket: BUCKET_NAME,
       Key: key,
       Expires: expiresIn
+      // NO ResponseContentDisposition for viewing
     };
     
     const url = await b2Client.getSignedUrlPromise('getObject', params);

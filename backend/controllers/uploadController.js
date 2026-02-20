@@ -267,7 +267,7 @@ export const getDownloadUrl = async (req, res) => {
     
     console.log('📥 Generating download URL for:', file.originalName);
     
-    // Generate short-lived presigned URL (5 minutes)
+    // Make sure this is using the correct method - should be generatePresignedDownloadUrl
     const downloadUrl = await b2.generatePresignedDownloadUrl(file.storageKey, 300);
     
     res.json({
@@ -281,7 +281,7 @@ export const getDownloadUrl = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Get download URL error:', error);
-    res.status(500).json({ error: `Failed to generate download URL: ${error.message}` });
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -303,7 +303,7 @@ export const getViewUrl = async (req, res) => {
     
     console.log('👁️ Generating view URL for:', file.originalName);
     
-    // Generate short-lived presigned URL for viewing (10 minutes)
+    // Make sure this is using the correct method - should be generatePresignedViewUrl
     const viewUrl = await b2.generatePresignedViewUrl(file.storageKey, 600);
     
     res.json({
@@ -316,10 +316,9 @@ export const getViewUrl = async (req, res) => {
     
   } catch (error) {
     console.error('❌ Get view URL error:', error);
-    res.status(500).json({ error: `Failed to generate view URL: ${error.message}` });
+    res.status(500).json({ error: error.message });
   }
 };
-
 // @desc    Get user's own files
 // @route   GET /api/files
 // @access  Private

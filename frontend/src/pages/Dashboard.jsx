@@ -29,20 +29,26 @@ const Dashboard = () => {
   const [fileStats, setFileStats] = useState({
     totalFiles: 0,
     totalSize: 0,
+    totalSizeMB: 0,
     imageCount: 0,
     imageSize: 0,
+    imageSizeMB: 0,
     imagePercentage: 0,
     videoCount: 0,
     videoSize: 0,
+    videoSizeMB: 0,
     videoPercentage: 0,
     pdfCount: 0,
     pdfSize: 0,
+    pdfSizeMB: 0,
     pdfPercentage: 0,
     documentCount: 0,
     documentSize: 0,
+    documentSizeMB: 0,
     documentPercentage: 0,
     otherCount: 0,
     otherSize: 0,
+    otherSizeMB: 0,
     otherPercentage: 0
   });
 
@@ -56,7 +62,22 @@ const Dashboard = () => {
       const filesRes = await fileAPI.getAllFiles();
       const userFiles = filesRes.data;
       
-      dispatch(setFiles(userFiles));
+      // Format files for display
+      const formattedFiles = userFiles.map(file => ({
+        id: file._id,
+        _id: file._id,
+        name: file.originalName || file.filename || 'Unnamed file',
+        displayName: (file.originalName || file.filename || '').split('/').pop(),
+        path: file.originalName || file.filename || '',
+        size: file.size || 0,
+        sizeMB: (file.size || 0) / (1024 * 1024),
+        type: file.mimetype || '',
+        storageUrl: file.storageUrl,
+        downloadUrl: file.downloadUrl,
+        uploadedAt: file.uploadDate || file.createdAt || new Date(),
+      }));
+      
+      dispatch(setFiles(formattedFiles));
 
       if (user?.role !== 'superAdmin') {
         try {
@@ -76,14 +97,29 @@ const Dashboard = () => {
         }
       }
 
-      calculateStats(userFiles);
-      generateChartData(userFiles);
+      calculateStats(formattedFiles);
+      generateChartData(formattedFiles);
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Convert bytes to MB
+  const bytesToMB = (bytes) => {
+    if (!bytes || isNaN(bytes)) return 0;
+    return bytes / (1024 * 1024);
+  };
+
+  // Format size for display
+  const formatSize = (bytes) => {
+    if (bytes === 0 || !bytes || isNaN(bytes)) return '0 MB';
+    
+    const mb = bytes / (1024 * 1024);
+    if (mb < 0.01) return '< 0.01 MB';
+    return mb.toFixed(2) + ' MB';
   };
 
   const calculateStats = (allFiles) => {
@@ -95,7 +131,7 @@ const Dashboard = () => {
     
     allFiles.forEach(file => {
       const size = file.size || 0;
-      const type = file.mimetype || '';
+      const type = file.type || '';
       
       if (type.startsWith('image/')) {
         imageCount++;
@@ -127,20 +163,26 @@ const Dashboard = () => {
     setFileStats({
       totalFiles,
       totalSize,
+      totalSizeMB: bytesToMB(totalSize),
       imageCount,
       imageSize,
+      imageSizeMB: bytesToMB(imageSize),
       imagePercentage,
       videoCount,
       videoSize,
+      videoSizeMB: bytesToMB(videoSize),
       videoPercentage,
       pdfCount,
       pdfSize,
+      pdfSizeMB: bytesToMB(pdfSize),
       pdfPercentage,
       documentCount,
       documentSize,
+      documentSizeMB: bytesToMB(documentSize),
       documentPercentage,
       otherCount,
       otherSize,
+      otherSizeMB: bytesToMB(otherSize),
       otherPercentage
     });
   };
@@ -149,19 +191,19 @@ const Dashboard = () => {
     let images = 0, videos = 0, pdfs = 0, documents = 0, others = 0;
 
     allFiles.forEach(file => {
-      const sizeInMB = (file.size || 0) / (1024 * 1024);
-      const type = file.mimetype || '';
+      const sizeInBytes = file.size || 0;
+      const type = file.type || '';
 
       if (type.startsWith('image/')) {
-        images += sizeInMB;
+        images += sizeInBytes;
       } else if (type.startsWith('video/')) {
-        videos += sizeInMB;
+        videos += sizeInBytes;
       } else if (type === 'application/pdf') {
-        pdfs += sizeInMB;
+        pdfs += sizeInBytes;
       } else if (type.includes('document') || type.includes('word') || type.includes('text')) {
-        documents += sizeInMB;
+        documents += sizeInBytes;
       } else {
-        others += sizeInMB;
+        others += sizeInBytes;
       }
     });
 
@@ -173,7 +215,13 @@ const Dashboard = () => {
         labels: ['Images', 'Videos', 'PDFs', 'Documents', 'Others'],
         datasets: [{
           label: 'Storage (MB)',
-          data: [images, videos, pdfs, documents, others],
+          data: [
+            images / (1024 * 1024), 
+            videos / (1024 * 1024), 
+            pdfs / (1024 * 1024), 
+            documents / (1024 * 1024), 
+            others / (1024 * 1024)
+          ],
           backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
           borderWidth: 1,
         }],
@@ -199,15 +247,17 @@ const Dashboard = () => {
 
   const getRecentFiles = () => {
     return [...files]
-      .sort((a, b) => new Date(b.uploadDate) - new Date(a.uploadDate))
+      .sort((a, b) => new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0))
       .slice(0, 5)
       .map(file => ({
         id: file._id,
-        name: file.originalName || file.name,
-        size: (file.size || 0) / (1024 * 1024),
-        type: file.mimetype,
+        _id: file._id,
+        name: file.displayName || file.name,
+        displayName: file.displayName || file.name,
+        size: file.size || 0,
+        type: file.type,
         storageUrl: file.storageUrl,
-        uploadedAt: file.uploadDate
+        uploadedAt: file.uploadedAt
       }));
   };
 
@@ -232,12 +282,11 @@ const Dashboard = () => {
                 Welcome back, {user?.username}!
               </h2>
               <p className="text-gray-500 dark:text-gray-400">
-                You have {fileStats.totalFiles} files using {(fileStats.totalSize / (1024 * 1024)).toFixed(2)} MB
+                You have {fileStats.totalFiles} files using {fileStats.totalSizeMB.toFixed(2)} MB
               </p>
             </div>
           </div>
           
-          {/* Changed from Refresh button to Upload button */}
           <button
             onClick={() => navigate('/upload')}
             className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700 text-white rounded-lg transition-colors shadow-sm"
