@@ -19,7 +19,12 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['superAdmin', 'admin', 'user'],
+    // SUPERADMIN COMMENTED START
+    // enum: ['superAdmin', 'admin', 'user'],
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: Only admin and user roles
+    enum: ['admin', 'user'],
     default: 'user',
   },
   company: {
@@ -60,11 +65,8 @@ const userSchema = new mongoose.Schema({
   authProviderId: String,
   avatar: String
 }, { 
-  timestamps: true 
+  timestamps: true // This creates createdAt and updatedAt automatically
 });
-
-// NO PRE-SAVE HOOK AT ALL - Let's remove it completely
-// We'll handle permissions in the controller instead
 
 const User = mongoose.model('User', userSchema);
 export default User;

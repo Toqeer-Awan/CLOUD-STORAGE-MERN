@@ -25,7 +25,7 @@ const Dashboard = () => {
   const [users, setUsers] = useState([]);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState(null);
+  const [chartData, setChartData] = useState([]); // Changed to array
   const [fileStats, setFileStats] = useState({
     totalFiles: 0,
     totalSize: 0,
@@ -79,6 +79,7 @@ const Dashboard = () => {
       
       dispatch(setFiles(formattedFiles));
 
+      // Get company data if user has company
       if (user?.role !== 'superAdmin') {
         try {
           const companyRes = await companyAPI.getMyCompany();
@@ -88,6 +89,7 @@ const Dashboard = () => {
         }
       }
 
+      // Get users if admin
       if (user?.role === 'superAdmin' || user?.role === 'admin') {
         try {
           const usersRes = await userAPI.getAllUsers();
@@ -98,7 +100,11 @@ const Dashboard = () => {
       }
 
       calculateStats(formattedFiles);
-      generateChartData(formattedFiles);
+      
+      // Generate both charts
+      const charts = generateChartData(formattedFiles);
+      setChartData(charts);
+      
     } catch (error) {
       console.error('Error:', error);
       toast.error('Failed to load dashboard data');
@@ -187,7 +193,9 @@ const Dashboard = () => {
     });
   };
 
+  // 🔥 UPDATED: Returns multiple charts
   const generateChartData = (allFiles) => {
+    // Chart 1: Storage by File Type
     let images = 0, videos = 0, pdfs = 0, documents = 0, others = 0;
 
     allFiles.forEach(file => {
@@ -207,26 +215,59 @@ const Dashboard = () => {
       }
     });
 
-    setChartData({
-      id: 1,
-      title: "Storage Usage",
-      description: "Distribution of your storage by file type",
-      chartData: {
-        labels: ['Images', 'Videos', 'PDFs', 'Documents', 'Others'],
-        datasets: [{
-          label: 'Storage (MB)',
-          data: [
-            images / (1024 * 1024), 
-            videos / (1024 * 1024), 
-            pdfs / (1024 * 1024), 
-            documents / (1024 * 1024), 
-            others / (1024 * 1024)
-          ],
-          backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
-          borderWidth: 1,
-        }],
+    // Chart 2: Storage Overview (Total vs Used)
+    // Get user quota for total storage
+    let totalStorage = 5 * 1024 * 1024 * 1024; // Default 5GB
+    let usedStorage = fileStats.totalSize || 0;
+    
+    // Try to get from user object if available
+    if (user?.storageAllocated) {
+      totalStorage = user.storageAllocated;
+    }
+
+    // Convert to GB for display
+    const totalGB = totalStorage / (1024 * 1024 * 1024);
+    const usedGB = usedStorage / (1024 * 1024 * 1024);
+    const availableGB = Math.max(0, totalGB - usedGB);
+
+    return [
+      // Chart 1: Storage by File Type
+      {
+        id: 1,
+        title: "Storage Usage by Type",
+        description: "Distribution of your storage by file type",
+        chartData: {
+          labels: ['Images', 'Videos', 'PDFs', 'Documents', 'Others'],
+          datasets: [{
+            label: 'Storage (MB)',
+            data: [
+              images / (1024 * 1024), 
+              videos / (1024 * 1024), 
+              pdfs / (1024 * 1024), 
+              documents / (1024 * 1024), 
+              others / (1024 * 1024)
+            ],
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+            borderWidth: 1,
+          }],
+        },
       },
-    });
+      // Chart 2: Storage Overview (NEW)
+      {
+        id: 3,
+        title: "Storage Overview",
+        description: `Total: ${totalGB.toFixed(2)}GB | Used: ${usedGB.toFixed(2)}GB | Available: ${availableGB.toFixed(2)}GB`,
+        chartData: {
+          labels: ['Used Storage', 'Available Storage'],
+          datasets: [{
+            label: 'Storage (GB)',
+            data: [usedGB, availableGB],
+            backgroundColor: ['#FF6384', '#36A2EB'], // Red for used, Blue for available
+            borderWidth: 1,
+          }],
+        },
+      }
+    ];
   };
 
   const handleDeleteFile = async (fileId) => {
@@ -297,12 +338,24 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="h-full">
-          {chartData && <Cards cardsData={[chartData]} />}
-        </div>
+      {/* 🔥 UPDATED: Three-column layout with both charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart 1: Storage Overview (Total vs Used) */}
+        {chartData.length > 1 && (
+          <div className="lg:col-span-1 h-full">
+            <Cards cardsData={[chartData[1]]} />
+          </div>
+        )}
         
-        <div className="h-full">
+        {/* Chart 2: Storage by File Type */}
+        {chartData.length > 0 && (
+          <div className="lg:col-span-1 h-full">
+            <Cards cardsData={[chartData[0]]} />
+          </div>
+        )}
+        
+        {/* File Type Cards */}
+        <div className="lg:col-span-1 h-full">
           <FileTypeCards 
             stats={fileStats} 
             onTypeClick={handleTypeClick}

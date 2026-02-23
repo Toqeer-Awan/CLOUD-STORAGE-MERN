@@ -49,15 +49,15 @@ export const authAPI = {
 
 // User APIs
 export const userAPI = {
-  getAllUsers: () => API.get('/users'),
+  // SUPERADMIN COMMENTED: getAllUsers: () => API.get('/users'),
   getCompanyUsers: (companyId) => API.get(`/users/company/${companyId}`),
   createUser: (userData) => API.post('/users', userData),
   updateRole: (id, roleData) => API.put(`/users/${id}/role`, roleData),
   deleteUser: (id) => API.delete(`/users/${id}`),
   getPermissions: () => API.get('/users/permissions/me'),
   getAllPermissions: () => API.get('/users/permissions'),
-  updatePermissions: (data) => API.put('/users/permissions', data),
-  deleteCustomRole: (roleName) => API.delete(`/users/permissions/role/${roleName}`),
+  // SUPERADMIN COMMENTED: updatePermissions: (data) => API.put('/users/permissions', data),
+  // SUPERADMIN COMMENTED: deleteCustomRole: (roleName) => API.delete(`/users/permissions/role/${roleName}`),
   getQuota: () => API.get('/users/quota'),
 };
 
@@ -74,17 +74,17 @@ export const fileAPI = {
 
 // Company APIs
 export const companyAPI = {
-  getAllCompanies: () => API.get('/companies'),
+  // SUPERADMIN COMMENTED: getAllCompanies: () => API.get('/companies'),
   getMyCompany: () => API.get('/companies/me'),
   getCompanyById: (id) => API.get(`/companies/${id}`),
   updateCompanyStorage: (id, data) => API.put(`/companies/${id}/storage`, data),
-  deleteCompany: (id) => API.delete(`/companies/${id}`),
+  // SUPERADMIN COMMENTED: deleteCompany: (id) => API.delete(`/companies/${id}`),
   getCompanySummary: () => API.get('/companies/summary'),
 };
 
 // Storage Management APIs
 export const storageAPI = {
-  allocateToCompany: (data) => API.post('/storage/allocate-to-company', data),
+  // SUPERADMIN COMMENTED: allocateToCompany: (data) => API.post('/storage/allocate-to-company', data),
   allocateToUser: (data) => API.post('/storage/allocate-to-user', data),
   getUserStorage: (userId) => API.get(`/storage/user/${userId}`),
   getCompanyStorage: (companyId) => API.get(`/storage/company/${companyId}`),

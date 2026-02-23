@@ -7,8 +7,10 @@ import { userAPI } from '../redux/api/api';
 import { 
   MdUpload, MdCloud, MdWarning, MdStorage, 
   MdFolder, MdInsertDriveFile, MdCheckCircle,
-  MdError, MdClose, MdRefresh
+  MdError, MdClose, MdRefresh, MdImage, MdVideoLibrary,
+  MdPictureAsPdf, MdDescription, MdAudioFile, MdArchive
 } from "react-icons/md";
+import { FaFileExcel, FaFileWord, FaFilePowerpoint, FaFileArchive } from 'react-icons/fa';
 
 const Upload = () => {
   const [files, setLocalFiles] = useState([]);
@@ -45,6 +47,85 @@ const Upload = () => {
       fetchQuota();
     }
   }, [user, fetchQuota]);
+
+  // 🔥 NEW: Function to get appropriate icon based on file type
+  const getFileIcon = (file) => {
+    const type = file.type || '';
+    const name = file.name || '';
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    
+    // Images
+    if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+      return <MdImage className="text-blue-500 dark:text-blue-400 text-2xl" />;
+    }
+    
+    // Videos
+    if (type.startsWith('video/') || ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
+      return <MdVideoLibrary className="text-purple-500 dark:text-purple-400 text-2xl" />;
+    }
+    
+    // Audio
+    if (type.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) {
+      return <MdAudioFile className="text-pink-500 dark:text-pink-400 text-2xl" />;
+    }
+    
+    // PDF
+    if (type === 'application/pdf' || ext === 'pdf') {
+      return <MdPictureAsPdf className="text-red-500 dark:text-red-400 text-2xl" />;
+    }
+    
+    // Word documents
+    if (type.includes('word') || ['doc', 'docx'].includes(ext)) {
+      return <FaFileWord className="text-blue-600 dark:text-blue-400 text-2xl" />;
+    }
+    
+    // Excel
+    if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+      return <FaFileExcel className="text-green-600 dark:text-green-400 text-2xl" />;
+    }
+    
+    // PowerPoint
+    if (type.includes('powerpoint') || type.includes('presentation') || ['ppt', 'pptx'].includes(ext)) {
+      return <FaFilePowerpoint className="text-orange-600 dark:text-orange-400 text-2xl" />;
+    }
+    
+    // Archives
+    if (type.includes('zip') || type.includes('compressed') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+      return <FaFileArchive className="text-yellow-600 dark:text-yellow-400 text-2xl" />;
+    }
+    
+    // Text files
+    if (type.includes('text') || ext === 'txt') {
+      return <MdDescription className="text-gray-500 dark:text-gray-400 text-2xl" />;
+    }
+    
+    // Folders
+    if (file.path && file.path.includes('/')) {
+      return <MdFolder className="text-yellow-500 dark:text-yellow-400 text-2xl" />;
+    }
+    
+    // Default
+    return <MdInsertDriveFile className="text-gray-500 dark:text-gray-400 text-2xl" />;
+  };
+
+  // 🔥 NEW: Get file type display name
+  const getFileTypeDisplay = (file) => {
+    const type = file.type || '';
+    const name = file.name || '';
+    const ext = name.split('.').pop()?.toLowerCase() || '';
+    
+    if (type.startsWith('image/')) return 'Image';
+    if (type.startsWith('video/')) return 'Video';
+    if (type.startsWith('audio/')) return 'Audio';
+    if (type === 'application/pdf' || ext === 'pdf') return 'PDF';
+    if (type.includes('word') || ['doc', 'docx'].includes(ext)) return 'Word Document';
+    if (type.includes('excel') || ['xls', 'xlsx', 'csv'].includes(ext)) return 'Excel Spreadsheet';
+    if (type.includes('powerpoint') || ['ppt', 'pptx'].includes(ext)) return 'PowerPoint';
+    if (type.includes('zip') || ['zip', 'rar', '7z'].includes(ext)) return 'Archive';
+    if (type.includes('text') || ext === 'txt') return 'Text File';
+    if (type) return type.split('/').pop()?.toUpperCase() || 'File';
+    return 'File';
+  };
 
   // Handle folder drop
   const handleFolderDrop = async (items) => {
@@ -249,7 +330,7 @@ const Upload = () => {
     return 'bg-green-500';
   };
 
-  const canUploadAny = user?.role === 'superAdmin' || user?.permissions?.upload === true;
+  const canUploadAny = user?.role === 'admin' || user?.permissions?.upload === true;
 
   if (!canUploadAny) {
     return (
@@ -381,7 +462,7 @@ const Upload = () => {
         </div>
       )}
 
-      {/* Files List */}
+      {/* Files List - WITH ICONS FIXED */}
       {files.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -428,24 +509,28 @@ const Upload = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      {file.path.includes('/') ? (
-                        <MdFolder className="text-2xl text-yellow-500" />
-                      ) : (
-                        <MdInsertDriveFile className="text-2xl text-gray-400" />
-                      )}
+                      {/* 🔥 FIXED: Icon display with proper styling */}
+                      <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
+                        {getFileIcon(file)}
+                      </div>
                       <div>
                         <p className="text-gray-800 dark:text-white font-medium break-all">
                           {file.path}
                         </p>
-                        <p className="text-sm text-gray-500">
-                          {file.formattedSize} • {file.type || 'Unknown type'}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                            {getFileTypeDisplay(file)}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {file.formattedSize}
+                          </span>
+                        </div>
                       </div>
                     </div>
                     
                     {/* Progress bar */}
                     {file.status === 'uploading' && (
-                      <div className="mt-2 ml-10">
+                      <div className="mt-2 ml-13">
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
                           <div 
                             className="bg-orange-600 h-1.5 rounded-full transition-all duration-300"
@@ -458,7 +543,7 @@ const Upload = () => {
                     
                     {/* Error message */}
                     {file.status === 'failed' && (
-                      <p className="mt-2 ml-10 text-sm text-red-600 dark:text-red-400">
+                      <p className="mt-2 ml-13 text-sm text-red-600 dark:text-red-400">
                         Failed: {file.error || 'Upload failed'}
                       </p>
                     )}

@@ -37,17 +37,24 @@ export const protect = async (req, res, next) => {
 };
 
 export const admin = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'superAdmin')) {
+  // SUPERADMIN COMMENTED START
+  // if (req.user && (req.user.role === 'admin' || req.user.role === 'superAdmin')) {
+  // SUPERADMIN COMMENTED END
+  
+  // NEW: Only admin role
+  if (req.user && req.user.role === 'admin') {
     next();
   } else {
     return res.status(403).json({ error: 'Not authorized as admin' });
   }
 };
 
-export const superAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'superAdmin') {
-    next();
-  } else {
-    return res.status(403).json({ error: 'Not authorized as super admin' });
-  }
-};
+// SUPERADMIN COMMENTED START
+// export const superAdmin = (req, res, next) => {
+//   if (req.user && req.user.role === 'superAdmin') {
+//     next();
+//   } else {
+//     return res.status(403).json({ error: 'Not authorized as super admin' });
+//   }
+// };
+// SUPERADMIN COMMENTED END

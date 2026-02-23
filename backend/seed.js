@@ -52,19 +52,21 @@ const seedDatabase = async () => {
     // ===== 2. CREATE ROLES =====
     console.log('\n👥 Creating roles...');
 
-    // Super Admin Role
-    await Role.create({
-      name: 'superAdmin',
-      displayName: 'Super Administrator',
-      permissions: {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true, 
-        manageFiles: true, manageStorage: true, assignStorage: true
-      },
-      permissionIds: createdPermissions.map(p => p._id),
-      isCustom: false,
-      priority: 1
-    });
+    // SUPERADMIN COMMENTED START
+    // // Super Admin Role
+    // await Role.create({
+    //   name: 'superAdmin',
+    //   displayName: 'Super Administrator',
+    //   permissions: {
+    //     view: true, upload: true, download: true, delete: true,
+    //     addUser: true, removeUser: true, changeRole: true, 
+    //     manageFiles: true, manageStorage: true, assignStorage: true
+    //   },
+    //   permissionIds: createdPermissions.map(p => p._id),
+    //   isCustom: false,
+    //   priority: 1
+    // });
+    // SUPERADMIN COMMENTED END
 
     // Admin Role
     await Role.create({
@@ -76,7 +78,7 @@ const seedDatabase = async () => {
         manageFiles: true, manageStorage: true, assignStorage: true
       },
       isCustom: false,
-      priority: 2
+      priority: 1 // Changed from 2 to 1 since no superAdmin
     });
 
     // User Role
@@ -89,33 +91,38 @@ const seedDatabase = async () => {
         manageFiles: false, manageStorage: false, assignStorage: false
       },
       isCustom: false,
-      priority: 3
+      priority: 2 // Changed from 3 to 2
     });
 
     console.log(`✅ Created ${await Role.countDocuments()} roles`);
 
-    // ===== 3. CREATE SUPER ADMIN =====
-    console.log('\n👑 Creating Super Admin...');
+    // SUPERADMIN COMMENTED START
+    // // ===== 3. CREATE SUPER ADMIN =====
+    // console.log('\n👑 Creating Super Admin...');
+    // 
+    // const salt = await bcrypt.genSalt(10);
+    // const superAdminPassword = await bcrypt.hash('superadmin123', salt);
+    // const userPassword = await bcrypt.hash('password123', salt);
+    // 
+    // const superAdmin = await User.create({
+    //   username: 'superadmin',
+    //   email: 'superadmin@example.com',
+    //   password: superAdminPassword,
+    //   role: 'superAdmin',
+    //   company: null,
+    //   addedBy: null,
+    //   storageAllocated: 0,
+    //   storageUsed: 0
+    // });
+    // 
+    // console.log('✅ Super Admin created:', superAdmin.email);
+    // SUPERADMIN COMMENTED END
+
+    // ===== 3. CREATE COMPANIES AND ADMINS =====
+    console.log('\n🏢 Creating companies and admins...');
     
     const salt = await bcrypt.genSalt(10);
-    const superAdminPassword = await bcrypt.hash('superadmin123', salt);
     const userPassword = await bcrypt.hash('password123', salt);
-
-    const superAdmin = await User.create({
-      username: 'superadmin',
-      email: 'superadmin@example.com',
-      password: superAdminPassword,
-      role: 'superAdmin',
-      company: null,
-      addedBy: null,
-      storageAllocated: 0,
-      storageUsed: 0
-    });
-
-    console.log('✅ Super Admin created:', superAdmin.email);
-
-    // ===== 4. CREATE COMPANIES AND ADMINS =====
-    console.log('\n🏢 Creating companies and admins...');
 
     // TechCorp Company
     const techCorpAdmin = await User.create({
@@ -124,7 +131,7 @@ const seedDatabase = async () => {
       password: userPassword,
       role: 'admin',
       company: null,
-      addedBy: superAdmin._id,
+      addedBy: null, // Changed from superAdmin._id
       storageAllocated: DEFAULT_COMPANY_STORAGE, // Admin gets 50GB
       storageUsed: 0
     });
@@ -134,9 +141,9 @@ const seedDatabase = async () => {
       owner: techCorpAdmin._id,
       totalStorage: DEFAULT_COMPANY_STORAGE, // 50GB default
       usedStorage: 0,
-      allocatedToUsers: DEFAULT_COMPANY_STORAGE, // All 50GB allocated to admin
+      // SUPERADMIN COMMENTED: allocatedToUsers: DEFAULT_COMPANY_STORAGE, // All 50GB allocated to admin
       userCount: 1,
-      createdBy: superAdmin._id
+      createdBy: null // Changed from superAdmin._id
     });
 
     techCorpAdmin.company = techCorpCompany._id;
@@ -166,9 +173,9 @@ const seedDatabase = async () => {
     });
 
     // Update TechCorp company allocated storage
-    techCorpCompany.allocatedToUsers = techCorpAdmin.storageAllocated + 
-                                       techCorpUser1.storageAllocated + 
-                                       techCorpUser2.storageAllocated;
+    // SUPERADMIN COMMENTED: techCorpCompany.allocatedToUsers = techCorpAdmin.storageAllocated + 
+    // SUPERADMIN COMMENTED:                        techCorpUser1.storageAllocated + 
+    // SUPERADMIN COMMENTED:                        techCorpUser2.storageAllocated;
     techCorpCompany.userCount = await User.countDocuments({ company: techCorpCompany._id });
     await techCorpCompany.save();
 
@@ -179,7 +186,7 @@ const seedDatabase = async () => {
       password: userPassword,
       role: 'admin',
       company: null,
-      addedBy: superAdmin._id,
+      addedBy: null, // Changed from superAdmin._id
       storageAllocated: DEFAULT_COMPANY_STORAGE, // 50GB
       storageUsed: 0
     });
@@ -189,9 +196,9 @@ const seedDatabase = async () => {
       owner: designStudioAdmin._id,
       totalStorage: DEFAULT_COMPANY_STORAGE, // 50GB default
       usedStorage: 0,
-      allocatedToUsers: DEFAULT_COMPANY_STORAGE, // All 50GB allocated to admin
+      // SUPERADMIN COMMENTED: allocatedToUsers: DEFAULT_COMPANY_STORAGE, // All 50GB allocated to admin
       userCount: 1,
-      createdBy: superAdmin._id
+      createdBy: null // Changed from superAdmin._id
     });
 
     designStudioAdmin.company = designStudioCompany._id;
@@ -209,15 +216,15 @@ const seedDatabase = async () => {
     });
 
     // Update DesignStudio company allocated storage
-    designStudioCompany.allocatedToUsers = designStudioAdmin.storageAllocated + 
-                                          designStudioUser.storageAllocated;
+    // SUPERADMIN COMMENTED: designStudioCompany.allocatedToUsers = designStudioAdmin.storageAllocated + 
+    // SUPERADMIN COMMENTED:                       designStudioUser.storageAllocated;
     designStudioCompany.userCount = await User.countDocuments({ company: designStudioCompany._id });
     await designStudioCompany.save();
 
     console.log(`✅ Created ${await Company.countDocuments()} companies`);
     console.log(`✅ Created ${await User.countDocuments()} users`);
 
-    // ===== 5. CREATE SAMPLE FILES =====
+    // ===== 4. CREATE SAMPLE FILES =====
     console.log('\n📁 Creating sample files...');
 
     const now = new Date();
@@ -229,28 +236,28 @@ const seedDatabase = async () => {
         originalName: 'Q4 Project Proposal.pdf',
         size: 2.5 * 1024 * 1024, // 2.5 MB
         mimetype: 'application/pdf',
-        storageType: 's3',
+        storageType: 'b2',
         storageUrl: 'https://techcorp-bucket.s3.amazonaws.com/proposal.pdf',
         downloadUrl: 'https://techcorp-bucket.s3.amazonaws.com/proposal.pdf',
-        s3Key: 'techcorp/proposals/q4-proposal.pdf',
+        storageKey: 'techcorp/proposals/q4-proposal.pdf',
         uploadedBy: techCorpAdmin._id,
         company: techCorpCompany._id,
         uploadDate: new Date(now - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-        tags: ['proposal', 'pdf', 'quarterly']
+        // tags: ['proposal', 'pdf', 'quarterly']
       },
       {
         filename: 'ui-mockups.zip',
         originalName: 'UI Mockups.zip',
         size: 15.2 * 1024 * 1024, // 15.2 MB
         mimetype: 'application/zip',
-        storageType: 's3',
+        storageType: 'b2',
         storageUrl: 'https://techcorp-bucket.s3.amazonaws.com/mockups.zip',
         downloadUrl: 'https://techcorp-bucket.s3.amazonaws.com/mockups.zip',
-        s3Key: 'techcorp/design/ui-mockups.zip',
+        storageKey: 'techcorp/design/ui-mockups.zip',
         uploadedBy: techCorpUser1._id,
         company: techCorpCompany._id,
         uploadDate: new Date(now - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-        tags: ['design', 'mockups', 'ui']
+        // tags: ['design', 'mockups', 'ui']
       }
     ]);
 
@@ -261,34 +268,34 @@ const seedDatabase = async () => {
         originalName: 'Company Logo.png',
         size: 1.2 * 1024 * 1024, // 1.2 MB
         mimetype: 'image/png',
-        storageType: 's3',
+        storageType: 'b2',
         storageUrl: 'https://designstudio-bucket.s3.amazonaws.com/logo.png',
         downloadUrl: 'https://designstudio-bucket.s3.amazonaws.com/logo.png',
-        s3Key: 'designstudio/branding/logo.png',
+        storageKey: 'designstudio/branding/logo.png',
         uploadedBy: designStudioAdmin._id,
         company: designStudioCompany._id,
         uploadDate: new Date(now - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-        tags: ['logo', 'branding', 'image']
+        // tags: ['logo', 'branding', 'image']
       },
       {
         filename: 'portfolio.pdf',
         originalName: 'Design Portfolio.pdf',
         size: 8.7 * 1024 * 1024, // 8.7 MB
         mimetype: 'application/pdf',
-        storageType: 's3',
+        storageType: 'b2',
         storageUrl: 'https://designstudio-bucket.s3.amazonaws.com/portfolio.pdf',
         downloadUrl: 'https://designstudio-bucket.s3.amazonaws.com/portfolio.pdf',
-        s3Key: 'designstudio/portfolio/portfolio.pdf',
+        storageKey: 'designstudio/portfolio/portfolio.pdf',
         uploadedBy: designStudioUser._id,
         company: designStudioCompany._id,
         uploadDate: new Date(now - 4 * 24 * 60 * 60 * 1000), // 4 days ago
-        tags: ['portfolio', 'pdf', 'design']
+        // tags: ['portfolio', 'pdf', 'design']
       }
     ]);
 
     console.log(`✅ Created ${await File.countDocuments()} sample files`);
 
-    // ===== 6. UPDATE STORAGE USAGE =====
+    // ===== 5. UPDATE STORAGE USAGE =====
     console.log('\n💾 Updating storage usage...');
 
     // Update all users' storage used
@@ -334,18 +341,18 @@ const seedDatabase = async () => {
     companies.forEach(company => {
       const totalStorageGB = (company.totalStorage / (1024 * 1024 * 1024)).toFixed(1);
       const usedStorageGB = (company.usedStorage / (1024 * 1024 * 1024)).toFixed(2);
-      const allocatedGB = (company.allocatedToUsers / (1024 * 1024 * 1024)).toFixed(2);
+      // SUPERADMIN COMMENTED: const allocatedGB = (company.allocatedToUsers / (1024 * 1024 * 1024)).toFixed(2);
       
       console.log(`   ├─ ${company.name}`);
       console.log(`   │  Owner: ${company.owner?.username}`);
       console.log(`   │  Total Storage: ${totalStorageGB}GB`);
       console.log(`   │  Used: ${usedStorageGB}GB`);
-      console.log(`   │  Allocated: ${allocatedGB}GB`);
+      // SUPERADMIN COMMENTED: console.log(`   │  Allocated: ${allocatedGB}GB`);
       console.log(`   │  Users: ${company.userCount}`);
     });
     
     console.log('\n👥 USER ACCOUNTS:');
-    console.log('   ├─ SuperAdmin: superadmin@example.com / superadmin123');
+    // SUPERADMIN COMMENTED: console.log('   ├─ SuperAdmin: superadmin@example.com / superadmin123');
     console.log('   ├─ TechCorp Admin: john@techcorp.com / password123');
     console.log('   ├─ TechCorp User: jane@techcorp.com / password123');
     console.log('   ├─ TechCorp User: bob@techcorp.com / password123');

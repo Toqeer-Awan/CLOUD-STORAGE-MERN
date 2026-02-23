@@ -113,57 +113,59 @@ export const allocateStorageToUser = async (req, res) => {
   }
 };
 
-// @desc    Super Admin allocates storage to Admin's company
-// @route   POST /api/storage/allocate-to-company
-// @access  Private/SuperAdmin
-export const allocateStorageToCompany = async (req, res) => {
-  try {
-    const { companyId, storageInGB } = req.body;
-    
-    if (!companyId || !storageInGB || storageInGB < 0.1) {
-      return res.status(400).json({ 
-        error: 'Company ID and valid storage (min 0.1GB) required' 
-      });
-    }
-    
-    const storageInBytes = storageInGB * 1024 * 1024 * 1024;
-    
-    const company = await Company.findById(companyId);
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
-    
-    const oldTotal = company.totalStorage;
-    
-    // Update company total storage
-    company.totalStorage = storageInBytes;
-    await company.save();
-    
-    // Update the admin (owner) of this company
-    const admin = await User.findById(company.owner);
-    if (admin) {
-      admin.storageAllocated = storageInBytes;
-      await admin.save();
-      console.log(`✅ Updated admin ${admin.username} storage to ${storageInGB}GB`);
-    }
-    
-    console.log(`✅ Company ${company.name} storage updated: ${(oldTotal / (1024*1024*1024)).toFixed(2)}GB → ${storageInGB}GB`);
-    
-    res.json({
-      success: true,
-      message: `Storage updated to ${storageInGB}GB for ${company.name}`,
-      company: {
-        _id: company._id,
-        name: company.name,
-        totalStorage: company.totalStorage,
-        usedStorage: company.usedStorage
-      }
-    });
-  } catch (error) {
-    console.error('❌ Allocate storage error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// SUPERADMIN COMMENTED START
+// // @desc    Super Admin allocates storage to Admin's company
+// // @route   POST /api/storage/allocate-to-company
+// // @access  Private/SuperAdmin
+// export const allocateStorageToCompany = async (req, res) => {
+//   try {
+//     const { companyId, storageInGB } = req.body;
+//     
+//     if (!companyId || !storageInGB || storageInGB < 0.1) {
+//       return res.status(400).json({ 
+//         error: 'Company ID and valid storage (min 0.1GB) required' 
+//       });
+//     }
+//     
+//     const storageInBytes = storageInGB * 1024 * 1024 * 1024;
+//     
+//     const company = await Company.findById(companyId);
+//     if (!company) {
+//       return res.status(404).json({ error: 'Company not found' });
+//     }
+//     
+//     const oldTotal = company.totalStorage;
+//     
+//     // Update company total storage
+//     company.totalStorage = storageInBytes;
+//     await company.save();
+//     
+//     // Update the admin (owner) of this company
+//     const admin = await User.findById(company.owner);
+//     if (admin) {
+//       admin.storageAllocated = storageInBytes;
+//       await admin.save();
+//       console.log(`✅ Updated admin ${admin.username} storage to ${storageInGB}GB`);
+//     }
+//     
+//     console.log(`✅ Company ${company.name} storage updated: ${(oldTotal / (1024*1024*1024)).toFixed(2)}GB → ${storageInGB}GB`);
+//     
+//     res.json({
+//       success: true,
+//       message: `Storage updated to ${storageInGB}GB for ${company.name}`,
+//       company: {
+//         _id: company._id,
+//         name: company.name,
+//         totalStorage: company.totalStorage,
+//         usedStorage: company.usedStorage
+//       }
+//     });
+//   } catch (error) {
+//     console.error('❌ Allocate storage error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SUPERADMIN COMMENTED END
 
 // @desc    Get user storage
 // @route   GET /api/storage/user/:userId
@@ -181,7 +183,12 @@ export const getUserStorage = async (req, res) => {
     const adminCompanyId = req.user.company?._id?.toString() || req.user.company?.toString();
     const userCompanyId = user.company?._id?.toString() || user.company?.toString();
     
-    if (req.user.role !== 'superAdmin' && adminCompanyId !== userCompanyId) {
+    // SUPERADMIN COMMENTED START
+    // if (req.user.role !== 'superAdmin' && adminCompanyId !== userCompanyId) {
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: Only admin can access users in their company
+    if (adminCompanyId !== userCompanyId) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -239,7 +246,12 @@ export const getCompanyStorage = async (req, res) => {
     }
     
     // Check permissions
-    if (req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED START
+    // if (req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: Only company members can access
+    if (req.user.company?.toString() !== company._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
     
@@ -351,7 +363,7 @@ export const getMyStorage = async (req, res) => {
 
 // Export all functions
 export default {
-  allocateStorageToCompany,
+  // SUPERADMIN COMMENTED: allocateStorageToCompany,
   allocateStorageToUser,
   getUserStorage,
   getCompanyStorage,

@@ -2,11 +2,11 @@
 import express from 'express';
 import { protect, admin } from '../middleware/auth.js';
 import {
-  getAllCompanies,
+  // SUPERADMIN COMMENTED: getAllCompanies,
   getCompanyById,
   updateCompanyStorage,
   getMyCompany,
-  deleteCompany
+  // SUPERADMIN COMMENTED: deleteCompany
 } from '../controllers/companyController.js';
 
 const router = express.Router();
@@ -18,9 +18,12 @@ router.use(protect);
 router.get('/me', getMyCompany);
 
 // Admin only routes
-router.get('/', admin, getAllCompanies);
+// SUPERADMIN COMMENTED START
+// router.get('/', admin, getAllCompanies);
+// router.delete('/:id', admin, deleteCompany);
+// SUPERADMIN COMMENTED END
+
 router.put('/:id/storage', admin, updateCompanyStorage);
-router.delete('/:id', admin, deleteCompany);
 
 // Get company by ID (accessible by company members and admin)
 router.get('/:id', getCompanyById);

@@ -33,15 +33,16 @@ const MainLayout = () => {
 
   // Menu items with role-based visibility - REMOVED my-storage
   const menuItems = [
-    { path: '/', icon: MdDashboard, label: 'Dashboard', roles: ['superAdmin', 'admin', 'user'] },
+    { path: '/', icon: MdDashboard, label: 'Dashboard', roles: ['admin', 'user'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
     { path: '/upload', icon: MdUpload, label: 'Upload Files', roles: ['admin', 'user'] },
-    { path: '/files', icon: MdFolder, label: 'All Files', roles: ['superAdmin', 'admin', 'user'] },
-    // REMOVED: { path: '/my-storage', icon: MdPieChart, label: 'My Storage', roles: ['user'] },
+    { path: '/files', icon: MdFolder, label: 'All Files', roles: ['admin', 'user'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
     { path: '/company', icon: MdBusiness, label: 'My Company', roles: ['admin'] },
-    { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin', 'superAdmin'] },
-    { path: '/users/list', icon: MdList, label: 'User List', roles: ['superAdmin'] },
-    { path: '/roles', icon: MdSecurity, label: 'Roles & Permissions', roles: ['superAdmin'] },
-    { path: '/admin/companies', icon: MdStorage, label: 'Manage Companies', roles: ['superAdmin'] },
+    { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
+    // SUPERADMIN COMMENTED START
+    // { path: '/users/list', icon: MdList, label: 'User List', roles: ['superAdmin'] },
+    // { path: '/roles', icon: MdSecurity, label: 'Roles & Permissions', roles: ['superAdmin'] },
+    // { path: '/admin/companies', icon: MdStorage, label: 'Manage Companies', roles: ['superAdmin'] },
+    // SUPERADMIN COMMENTED END
   ];
 
   // Filter menu items based on user role
@@ -55,8 +56,13 @@ const MainLayout = () => {
     return {
       initial: user.username?.charAt(0).toUpperCase() || '?',
       name: user.username || 'User',
-      role: user.role === 'superAdmin' ? 'Super Admin' : 
-             user.role === 'admin' ? 'Admin' : 'User'
+      // SUPERADMIN COMMENTED START
+      // role: user.role === 'superAdmin' ? 'Super Admin' : 
+      //        user.role === 'admin' ? 'Admin' : 'User'
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: Only admin and user
+      role: user.role === 'admin' ? 'Admin' : 'User'
     };
   };
 
@@ -98,7 +104,7 @@ const MainLayout = () => {
                     {userDisplay.name}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 capitalize flex items-center gap-1">
-                    {user?.role === 'superAdmin' && <MdAdminPanelSettings className="text-xs" />}
+                    {/* SUPERADMIN COMMENTED: {user?.role === 'superAdmin' && <MdAdminPanelSettings className="text-xs" />} */}
                     {userDisplay.role}
                   </p>
                 </div>

@@ -51,14 +51,35 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Determine role (first user is superAdmin, others are admin)
+    // SUPERADMIN COMMENTED START
+    // // Determine role (first user is superAdmin, others are admin)
+    // const userCount = await User.countDocuments();
+    // let role = userCount === 0 ? 'superAdmin' : 'admin';
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: All users are admin (first user is admin, creates company)
     const userCount = await User.countDocuments();
-    let role = userCount === 0 ? 'superAdmin' : 'admin';
+    let role = 'admin'; // All users are admin
     
     console.log(`👑 Setting role: ${role} for user: ${email}`);
     
     // Create user
-    // Admin gets 50GB, superAdmin gets 0
+    // SUPERADMIN COMMENTED START
+    // // Admin gets 50GB, superAdmin gets 0
+    // const user = await User.create({
+    //   username,
+    //   email,
+    //   password: hashedPassword,
+    //   role: role,
+    //   company: null,
+    //   addedBy: null,
+    //   storageAllocated: role === 'admin' ? 50 * 1024 * 1024 * 1024 : 0, // Admin gets 50GB
+    //   storageUsed: 0,
+    //   allocatedToUsers: 0 // Admin starts with 0 allocated to users
+    // });
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: All users get 50GB
     const user = await User.create({
       username,
       email,
@@ -66,36 +87,40 @@ export const register = async (req, res) => {
       role: role,
       company: null,
       addedBy: null,
-      storageAllocated: role === 'admin' ? 50 * 1024 * 1024 * 1024 : 0, // Admin gets 50GB
+      storageAllocated: 50 * 1024 * 1024 * 1024, // All users get 50GB
       storageUsed: 0,
-      allocatedToUsers: 0 // Admin starts with 0 allocated to users
+      allocatedToUsers: 0
     });
     
     console.log(`✅ User created with ID: ${user._id}`);
     
     let company = null;
     
-    // Create company for admin users (not for superAdmin)
-    if (role === 'admin') {
-      const companyName = `${username}'s Company`;
-      
-      console.log(`🏢 Creating company: ${companyName} for admin: ${username}`);
-      
-      company = await Company.create({
-        name: companyName,
-        owner: user._id,
-        totalStorage: 50 * 1024 * 1024 * 1024, // 50GB for company
-        usedStorage: 0,
-        userCount: 1,
-        createdBy: null
-      });
-      
-      // Update user with company ID
-      user.company = company._id;
-      await user.save();
-      
-      console.log(`✅ Company created with ID: ${company._id}`);
-    }
+    // SUPERADMIN COMMENTED START
+    // // Create company for admin users (not for superAdmin)
+    // if (role === 'admin') {
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: All users create company (first user's company name, others join? - this needs adjustment)
+    // For now, all users create their own company
+    const companyName = `${username}'s Company`;
+    
+    console.log(`🏢 Creating company: ${companyName} for user: ${username}`);
+    
+    company = await Company.create({
+      name: companyName,
+      owner: user._id,
+      totalStorage: 50 * 1024 * 1024 * 1024, // 50GB for company
+      usedStorage: 0,
+      userCount: 1,
+      createdBy: null
+    });
+    
+    // Update user with company ID
+    user.company = company._id;
+    await user.save();
+    
+    console.log(`✅ Company created with ID: ${company._id}`);
     
     console.log(`📊 Storage summary:`);
     console.log(`   - Role: ${role}`);

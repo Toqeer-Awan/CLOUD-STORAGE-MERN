@@ -3,47 +3,49 @@ import User from '../models/User.js';
 import File from '../models/File.js';
 import mongoose from 'mongoose';
 
-// @desc    Get all companies (Admin only)
-// @route   GET /api/companies
-// @access  Private/Admin
-export const getAllCompanies = async (req, res) => {
-  try {
-    const companies = await Company.find()
-      .populate('owner', 'username email')
-      .sort({ createdAt: -1 });
-    
-    const companiesWithStats = await Promise.all(
-      companies.map(async (company) => {
-        const users = await User.find({ company: company._id }).select('username email role createdAt storageAllocated storageUsed');
-        const files = await File.find({ 
-          company: company._id, 
-          isDeleted: false, 
-          uploadStatus: 'completed' 
-        });
-        
-        const totalStorageUsed = files.reduce((acc, file) => acc + (file.size || 0), 0);
-        const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
-        
-        return {
-          ...company.toObject(),
-          users,
-          totalFiles: files.length,
-          storageUsed: totalStorageUsed,
-          allocatedToUsers: totalAllocated,
-          storagePercentage: company.totalStorage > 0 ? ((totalStorageUsed / company.totalStorage) * 100).toFixed(2) : '0.00',
-          allocationPercentage: company.totalStorage > 0 ? ((totalAllocated / company.totalStorage) * 100).toFixed(2) : '0.00',
-          isOverAllocated: totalAllocated > company.totalStorage,
-          overAllocatedBy: Math.max(0, totalAllocated - company.totalStorage)
-        };
-      })
-    );
-    
-    res.json(companiesWithStats);
-  } catch (error) {
-    console.error('❌ Get companies error:', error);
-    res.status(500).json({ error: 'Server error: ' + error.message });
-  }
-};
+// SUPERADMIN COMMENTED START
+// // @desc    Get all companies (Admin only)
+// // @route   GET /api/companies
+// // @access  Private/Admin
+// export const getAllCompanies = async (req, res) => {
+//   try {
+//     const companies = await Company.find()
+//       .populate('owner', 'username email')
+//       .sort({ createdAt: -1 });
+//     
+//     const companiesWithStats = await Promise.all(
+//       companies.map(async (company) => {
+//         const users = await User.find({ company: company._id }).select('username email role createdAt storageAllocated storageUsed');
+//         const files = await File.find({ 
+//           company: company._id, 
+//           isDeleted: false, 
+//           uploadStatus: 'completed' 
+//         });
+//         
+//         const totalStorageUsed = files.reduce((acc, file) => acc + (file.size || 0), 0);
+//         const totalAllocated = users.reduce((acc, user) => acc + (user.storageAllocated || 0), 0);
+//         
+//         return {
+//           ...company.toObject(),
+//           users,
+//           totalFiles: files.length,
+//           storageUsed: totalStorageUsed,
+//           allocatedToUsers: totalAllocated,
+//           storagePercentage: company.totalStorage > 0 ? ((totalStorageUsed / company.totalStorage) * 100).toFixed(2) : '0.00',
+//           allocationPercentage: company.totalStorage > 0 ? ((totalAllocated / company.totalStorage) * 100).toFixed(2) : '0.00',
+//           isOverAllocated: totalAllocated > company.totalStorage,
+//           overAllocatedBy: Math.max(0, totalAllocated - company.totalStorage)
+//         };
+//       })
+//     );
+//     
+//     res.json(companiesWithStats);
+//   } catch (error) {
+//     console.error('❌ Get companies error:', error);
+//     res.status(500).json({ error: 'Server error: ' + error.message });
+//   }
+// };
+// SUPERADMIN COMMENTED END
 
 // @desc    Get company by ID
 // @route   GET /api/companies/:id
@@ -57,8 +59,13 @@ export const getCompanyById = async (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    // Check access
-    if (req.user.role !== 'admin' && req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED START
+    // // Check access
+    // if (req.user.role !== 'admin' && req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: Only admin can access their own company
+    if (req.user.role !== 'admin' && req.user.company?.toString() !== company._id.toString()) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -111,18 +118,25 @@ export const getMyCompany = async (req, res) => {
   try {
     console.log('📊 Getting company for user:', req.user.id);
 
-    // Check if user has a company
+    // SUPERADMIN COMMENTED START
+    // // Check if user has a company
+    // if (!req.user.company) {
+    //   if (req.user.role === 'superAdmin') {
+    //     return res.json({
+    //       message: 'Super admin has no company',
+    //       totalStorage: 0,
+    //       usedStorage: 0,
+    //       allocatedToUsers: 0,
+    //       users: [],
+    //       recentFiles: []
+    //     });
+    //   }
+    //   return res.status(404).json({ error: 'No company assigned' });
+    // }
+    // SUPERADMIN COMMENTED END
+
+    // NEW: All users should have a company
     if (!req.user.company) {
-      if (req.user.role === 'superAdmin') {
-        return res.json({
-          message: 'Super admin has no company',
-          totalStorage: 0,
-          usedStorage: 0,
-          allocatedToUsers: 0,
-          users: [],
-          recentFiles: []
-        });
-      }
       return res.status(404).json({ error: 'No company assigned' });
     }
 
@@ -258,8 +272,13 @@ export const updateCompanyStorage = async (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
 
-    // Only superAdmin can update any company, admin can only update their own
-    if (req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED START
+    // // Only superAdmin can update any company, admin can only update their own
+    // if (req.user.role !== 'superAdmin' && req.user.company?.toString() !== company._id.toString()) {
+    // SUPERADMIN COMMENTED END
+    
+    // NEW: Only admin can update their own company
+    if (req.user.company?.toString() !== company._id.toString()) {
       await session.abortTransaction();
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -279,19 +298,21 @@ export const updateCompanyStorage = async (req, res) => {
     company.totalStorage = totalStorage;
     await company.save({ session });
 
-    // If superAdmin updates storage, update admin's allocation as well
-    if (req.user.role === 'superAdmin') {
-      const admins = await User.find({ 
-        company: company._id, 
-        role: 'admin' 
-      }).session(session);
-      
-      for (const admin of admins) {
-        admin.storageAllocated = totalStorage;
-        await admin.save({ session });
-      }
-      console.log(`✅ Updated ${admins.length} admins to new storage: ${(totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
-    }
+    // SUPERADMIN COMMENTED START
+    // // If superAdmin updates storage, update admin's allocation as well
+    // if (req.user.role === 'superAdmin') {
+    //   const admins = await User.find({ 
+    //     company: company._id, 
+    //     role: 'admin' 
+    //   }).session(session);
+    //   
+    //   for (const admin of admins) {
+    //     admin.storageAllocated = totalStorage;
+    //     await admin.save({ session });
+    //   }
+    //   console.log(`✅ Updated ${admins.length} admins to new storage: ${(totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
+    // }
+    // SUPERADMIN COMMENTED END
 
     await session.commitTransaction();
 
@@ -316,50 +337,52 @@ export const updateCompanyStorage = async (req, res) => {
   }
 };
 
-// @desc    Delete company (Admin only)
-// @route   DELETE /api/companies/:id
-// @access  Private/Admin
-export const deleteCompany = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  
-  try {
-    const company = await Company.findById(req.params.id).session(session);
-    
-    if (!company) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: 'Company not found' });
-    }
-
-    // Only superAdmin can delete companies
-    if (req.user.role !== 'superAdmin') {
-      await session.abortTransaction();
-      return res.status(403).json({ error: 'Access denied. Only superAdmin can delete companies.' });
-    }
-
-    // Delete all users in this company
-    await User.deleteMany({ company: company._id }).session(session);
-    
-    // Delete all files in this company
-    await File.deleteMany({ company: company._id }).session(session);
-    
-    // Delete the company
-    await company.deleteOne({ session });
-
-    await session.commitTransaction();
-
-    res.json({ 
-      success: true,
-      message: 'Company and all associated data deleted successfully' 
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    console.error('❌ Delete company error:', error);
-    res.status(500).json({ error: 'Server error: ' + error.message });
-  } finally {
-    session.endSession();
-  }
-};
+// SUPERADMIN COMMENTED START
+// // @desc    Delete company (Admin only)
+// // @route   DELETE /api/companies/:id
+// // @access  Private/Admin
+// export const deleteCompany = async (req, res) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+//   
+//   try {
+//     const company = await Company.findById(req.params.id).session(session);
+//     
+//     if (!company) {
+//       await session.abortTransaction();
+//       return res.status(404).json({ error: 'Company not found' });
+//     }
+// 
+//     // Only superAdmin can delete companies
+//     if (req.user.role !== 'superAdmin') {
+//       await session.abortTransaction();
+//       return res.status(403).json({ error: 'Access denied. Only superAdmin can delete companies.' });
+//     }
+// 
+//     // Delete all users in this company
+//     await User.deleteMany({ company: company._id }).session(session);
+//     
+//     // Delete all files in this company
+//     await File.deleteMany({ company: company._id }).session(session);
+//     
+//     // Delete the company
+//     await company.deleteOne({ session });
+// 
+//     await session.commitTransaction();
+// 
+//     res.json({ 
+//       success: true,
+//       message: 'Company and all associated data deleted successfully' 
+//     });
+//   } catch (error) {
+//     await session.abortTransaction();
+//     console.error('❌ Delete company error:', error);
+//     res.status(500).json({ error: 'Server error: ' + error.message });
+//   } finally {
+//     session.endSession();
+//   }
+// };
+// SUPERADMIN COMMENTED END
 
 // @desc    Get company storage summary (for admin dashboard)
 // @route   GET /api/companies/summary
@@ -467,11 +490,11 @@ export const fixCompanyAllocations = async (req, res) => {
 
 // Export all functions
 export default {
-  getAllCompanies,
+  // SUPERADMIN COMMENTED: getAllCompanies,
   getCompanyById,
   getMyCompany,
   updateCompanyStorage,
-  deleteCompany,
+  // SUPERADMIN COMMENTED: deleteCompany,
   getCompanySummary,
   fixCompanyAllocations
 };

@@ -13,27 +13,30 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import OAuthCallback from './pages/OAuthCallback';
 import AddUser from './pages/AddUser';
-import UserList from './pages/UserList';
-import RolesPermissions from './pages/RolePermissions';
+// SUPERADMIN COMMENTED START
+// import UserList from './pages/UserList';
+// import RolesPermissions from './pages/RolePermissions';
+// import AdminCompanies from './components/AdminCompanies';
+// SUPERADMIN COMMENTED END
 import CompanyDashboard from './components/CompanyDashboard';
-import AdminCompanies from './components/AdminCompanies';
-// Remove this line: import UserDashboard from './components/UserDashboard';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   return token ? children : <Navigate to="/login" />;
 };
 
-// Only SuperAdmin can access these routes
-const SuperAdminRoute = ({ children }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  const token = localStorage.getItem('token');
-  
-  if (!token) return <Navigate to="/login" />;
-  if (user?.role !== 'superAdmin') return <Navigate to="/" />;
-  
-  return children;
-};
+// SUPERADMIN COMMENTED START
+// // Only SuperAdmin can access these routes
+// const SuperAdminRoute = ({ children }) => {
+//   const user = JSON.parse(localStorage.getItem('user'));
+//   const token = localStorage.getItem('token');
+//   
+//   if (!token) return <Navigate to="/login" />;
+//   if (user?.role !== 'superAdmin') return <Navigate to="/" />;
+//   
+//   return children;
+// };
+// SUPERADMIN COMMENTED END
 
 // Admin and SuperAdmin can access these routes
 const AdminRoute = ({ children }) => {
@@ -41,21 +44,15 @@ const AdminRoute = ({ children }) => {
   const token = localStorage.getItem('token');
   
   if (!token) return <Navigate to="/login" />;
-  if (user?.role !== 'admin' && user?.role !== 'superAdmin') return <Navigate to="/" />;
+  // SUPERADMIN COMMENTED START
+  // if (user?.role !== 'admin' && user?.role !== 'superAdmin') return <Navigate to="/" />;
+  // SUPERADMIN COMMENTED END
+  
+  // NEW: Only admin role
+  if (user?.role !== 'admin') return <Navigate to="/" />;
   
   return children;
 };
-
-// Remove this entire block
-// const UserRoute = ({ children }) => {
-//   const user = JSON.parse(localStorage.getItem('user'));
-//   const token = localStorage.getItem('token');
-//   
-//   if (!token) return <Navigate to="/login" />;
-//   if (user?.role !== 'user') return <Navigate to="/" />;
-//   
-//   return children;
-// };
 
 function App() {
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -80,13 +77,6 @@ function App() {
                 <Route path="upload" element={<Upload />} />
                 <Route path="files" element={<AllFiles />} />
                 
-                {/* Remove this entire block */}
-                {/* <Route path="my-storage" element={
-                  <UserRoute>
-                    <UserDashboard />
-                  </UserRoute>
-                /> */}
-                
                 <Route path="company" element={
                   <AdminRoute>
                     <CompanyDashboard />
@@ -99,7 +89,8 @@ function App() {
                   </AdminRoute>
                 } />
                 
-                <Route path="users/list" element={
+                {/* SUPERADMIN COMMENTED START */}
+                {/* <Route path="users/list" element={
                   <SuperAdminRoute>
                     <UserList />
                   </SuperAdminRoute>
@@ -115,7 +106,8 @@ function App() {
                   <SuperAdminRoute>
                     <AdminCompanies />
                   </SuperAdminRoute>
-                } />
+                } /> */}
+                {/* SUPERADMIN COMMENTED END */}
               </Route>
               
               <Route path="*" element={<Navigate to="/" />} />

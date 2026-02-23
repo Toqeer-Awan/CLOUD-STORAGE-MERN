@@ -75,9 +75,14 @@ router.post('/google', async (req, res) => {
       const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || 
                       profile.email.split('@')[0];
       
-      // Check if this is first user (make superAdmin)
-      const userCount = await User.countDocuments();
-      const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED START
+      // // Check if this is first user (make superAdmin)
+      // const userCount = await User.countDocuments();
+      // const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: All users are admin
+      const role = 'admin';
       
       // 🔥 FIX: Create user FIRST (with null company)
       user = await User.create({
@@ -89,35 +94,43 @@ router.post('/google', async (req, res) => {
         authProvider: 'google',
         authProviderId: profile.sub,
         avatar: profile.picture,
-        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED START
+        // storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED END
+        
+        // NEW: All users get storage
+        storageAllocated: 5 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // Only create company for admin users (not superAdmin)
-      if (role === 'admin') {
-        console.log('Creating company for admin user...');
-        
-        // Create company with owner set to user ID
-        const company = await Company.create({
-          name: `${username}'s Company`,
-          owner: user._id,  // Now user._id exists
-          totalStorage: 5 * 1024 * 1024 * 1024,
-          usedStorage: 0,
-          allocatedToUsers: 0,
-          userCount: 1
-        });
-        
-        console.log('✅ Company created with ID:', company._id);
-        
-        // Update user with company ID
-        user.company = company._id;
-        await user.save();
-        
-        // Populate company for response
-        user = await User.findById(user._id).populate('company');
-      }
+      // SUPERADMIN COMMENTED START
+      // // Only create company for admin users (not superAdmin)
+      // if (role === 'admin') {
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: Always create company
+      console.log('Creating company for user...');
+      
+      // Create company with owner set to user ID
+      const company = await Company.create({
+        name: `${username}'s Company`,
+        owner: user._id,  // Now user._id exists
+        totalStorage: 5 * 1024 * 1024 * 1024,
+        usedStorage: 0,
+        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+        userCount: 1
+      });
+      
+      console.log('✅ Company created with ID:', company._id);
+      
+      // Update user with company ID
+      user.company = company._id;
+      await user.save();
+      
+      // Populate company for response
+      user = await User.findById(user._id).populate('company');
     }
     
     // Generate JWT
@@ -217,8 +230,13 @@ router.post('/facebook', async (req, res) => {
       const username = profile.name?.replace(/\s+/g, '_').toLowerCase() || 
                       profile.email.split('@')[0];
       
-      const userCount = await User.countDocuments();
-      const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED START
+      // const userCount = await User.countDocuments();
+      // const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: All users are admin
+      const role = 'admin';
       
       // 🔥 FIX: Create user FIRST
       user = await User.create({
@@ -230,31 +248,39 @@ router.post('/facebook', async (req, res) => {
         authProvider: 'facebook',
         authProviderId: profile.id,
         avatar: profile.picture?.data?.url,
-        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED START
+        // storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED END
+        
+        // NEW: All users get storage
+        storageAllocated: 5 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // Create company for admin
-      if (role === 'admin') {
-        console.log('Creating company for admin user...');
-        
-        const company = await Company.create({
-          name: `${username}'s Company`,
-          owner: user._id,
-          totalStorage: 5 * 1024 * 1024 * 1024,
-          usedStorage: 0,
-          allocatedToUsers: 0,
-          userCount: 1
-        });
-        
-        console.log('✅ Company created with ID:', company._id);
-        
-        user.company = company._id;
-        await user.save();
-        user = await User.findById(user._id).populate('company');
-      }
+      // SUPERADMIN COMMENTED START
+      // // Create company for admin
+      // if (role === 'admin') {
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: Always create company
+      console.log('Creating company for user...');
+      
+      const company = await Company.create({
+        name: `${username}'s Company`,
+        owner: user._id,
+        totalStorage: 5 * 1024 * 1024 * 1024,
+        usedStorage: 0,
+        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+        userCount: 1
+      });
+      
+      console.log('✅ Company created with ID:', company._id);
+      
+      user.company = company._id;
+      await user.save();
+      user = await User.findById(user._id).populate('company');
     }
     
     // Generate JWT
@@ -359,8 +385,13 @@ router.post('/microsoft', async (req, res) => {
       const username = profile.displayName?.replace(/\s+/g, '_').toLowerCase() || 
                       email.split('@')[0];
       
-      const userCount = await User.countDocuments();
-      const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED START
+      // const userCount = await User.countDocuments();
+      // const role = userCount === 0 ? 'superAdmin' : 'admin';
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: All users are admin
+      const role = 'admin';
       
       // 🔥 FIX: Create user FIRST
       user = await User.create({
@@ -372,31 +403,39 @@ router.post('/microsoft', async (req, res) => {
         authProvider: 'microsoft',
         authProviderId: profile.id,
         avatar: null,
-        storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED START
+        // storageAllocated: role === 'admin' ? 5 * 1024 * 1024 * 1024 : 0,
+        // SUPERADMIN COMMENTED END
+        
+        // NEW: All users get storage
+        storageAllocated: 5 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // Create company for admin
-      if (role === 'admin') {
-        console.log('Creating company for admin user...');
-        
-        const company = await Company.create({
-          name: `${username}'s Company`,
-          owner: user._id,
-          totalStorage: 5 * 1024 * 1024 * 1024,
-          usedStorage: 0,
-          allocatedToUsers: 0,
-          userCount: 1
-        });
-        
-        console.log('✅ Company created with ID:', company._id);
-        
-        user.company = company._id;
-        await user.save();
-        user = await User.findById(user._id).populate('company');
-      }
+      // SUPERADMIN COMMENTED START
+      // // Create company for admin
+      // if (role === 'admin') {
+      // SUPERADMIN COMMENTED END
+      
+      // NEW: Always create company
+      console.log('Creating company for user...');
+      
+      const company = await Company.create({
+        name: `${username}'s Company`,
+        owner: user._id,
+        totalStorage: 5 * 1024 * 1024 * 1024,
+        usedStorage: 0,
+        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+        userCount: 1
+      });
+      
+      console.log('✅ Company created with ID:', company._id);
+      
+      user.company = company._id;
+      await user.save();
+      user = await User.findById(user._id).populate('company');
     }
     
     // Generate JWT

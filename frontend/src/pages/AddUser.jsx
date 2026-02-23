@@ -1,36 +1,87 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { addUser } from '../redux/slices/userSlice';
-import { userAPI } from '../redux/api/api';
+import { userAPI, authAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
-import { MdPersonAdd, MdEmail, MdLock, MdAdminPanelSettings, MdClear, MdInfo } from 'react-icons/md';
+import { 
+  MdPersonAdd, MdEmail, MdLock, MdAdminPanelSettings, MdClear, MdInfo,
+  MdWarning, MdAccessTime, MdStorage, MdCheckCircle, MdHourglassEmpty
+} from 'react-icons/md';
 
 const AddUser = () => {
   const { user: currentUser } = useSelector((state) => state.auth);
   const [formData, setFormData] = useState({
-    username: '', email: '', password: '', confirmPassword: '', role: 'user' // Default to 'user'
+    username: '', email: '', password: '', confirmPassword: '', role: 'user'
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [availableRoles, setAvailableRoles] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
+  const [eligibility, setEligibility] = useState({
+    accountAge: null,
+    storageUsed: null,
+    meetsAgeRequirement: false,
+    meetsStorageRequirement: false,
+    loading: true,
+    accountAgeHours: null,
+    storageUsedMB: null,
+    hoursRemaining: null,
+    storageNeeded: null
+  });
   const dispatch = useDispatch();
   const toast = useToast();
 
   useEffect(() => {
     fetchRoles();
+    checkEligibility();
   }, []);
+
+  // Check if admin meets requirements
+  const checkEligibility = async () => {
+    try {
+      // Use quota endpoint which now includes account age
+      const response = await userAPI.getQuota();
+      const quota = response.data;
+      
+      // Get user profile for additional info if needed
+      const profileRes = await authAPI.getProfile();
+      const userProfile = profileRes.data.user;
+      
+      const accountAgeHours = parseFloat(quota.accountAge || 0);
+      const storageUsedMB = quota.used / (1024 * 1024);
+      
+      const meetsAge = accountAgeHours >= 48;
+      const meetsStorage = storageUsedMB > 0.14;
+      
+      const hoursRemaining = meetsAge ? 0 : (48 - accountAgeHours).toFixed(1);
+      const storageNeeded = meetsStorage ? 0 : (0.14 - storageUsedMB).toFixed(2);
+      
+      setEligibility({
+        accountAge: accountAgeHours.toFixed(1),
+        storageUsed: storageUsedMB.toFixed(2),
+        meetsAgeRequirement: meetsAge,
+        meetsStorageRequirement: meetsStorage,
+        loading: false,
+        accountAgeHours,
+        storageUsedMB,
+        hoursRemaining,
+        storageNeeded: storageNeeded > 0 ? storageNeeded : 0
+      });
+    } catch (error) {
+      console.error('Failed to check eligibility:', error);
+      toast.error('Could not verify account eligibility');
+      setEligibility(prev => ({ ...prev, loading: false }));
+    }
+  };
 
   const fetchRoles = async () => {
     try {
       setLoadingRoles(true);
       const response = await userAPI.getAllPermissions();
-      console.log('API Response for roles:', response.data);
       
       if (response.data) {
         const rolesList = [];
         
-        // Get default roles from the roles object
         if (response.data.roles) {
           Object.keys(response.data.roles).forEach(roleName => {
             rolesList.push({
@@ -42,10 +93,8 @@ const AddUser = () => {
           });
         }
         
-        // Get custom roles
         if (response.data.customRoles && Array.isArray(response.data.customRoles)) {
           response.data.customRoles.forEach(role => {
-            // Check if this role name already exists (shouldn't, but just in case)
             const exists = rolesList.some(r => r.name === role.name);
             if (!exists) {
               rolesList.push({
@@ -58,15 +107,11 @@ const AddUser = () => {
           });
         }
         
-        console.log('Final Roles List for dropdown:', rolesList);
         setAvailableRoles(rolesList);
         
-        // For admin users, always set role to 'user' and disable selection
         if (currentUser?.role === 'admin') {
           setFormData(prev => ({ ...prev, role: 'user' }));
-        } 
-        // For superAdmin, set default to first role if available
-        else if (rolesList.length > 0 && !formData.role) {
+        } else if (rolesList.length > 0 && !formData.role) {
           setFormData(prev => ({ ...prev, role: rolesList[0].name }));
         }
       }
@@ -101,6 +146,13 @@ const AddUser = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    
+    // Double-check eligibility before submission
+    if (!eligibility.meetsAgeRequirement || !eligibility.meetsStorageRequirement) {
+      toast.error('You do not meet the requirements to add users');
+      return;
+    }
+    
     setLoading(true);
     try {
       const response = await userAPI.createUser({
@@ -112,7 +164,6 @@ const AddUser = () => {
       dispatch(addUser(response.data.user));
       toast.userAdded('User created successfully!');
       
-      // Reset form - keep role as 'user' for admin
       if (currentUser?.role === 'admin') {
         setFormData({ username: '', email: '', password: '', confirmPassword: '', role: 'user' });
       } else {
@@ -120,14 +171,48 @@ const AddUser = () => {
       }
       setErrors({});
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to create user');
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Failed to create user';
+      toast.error(errorMessage);
+      
+      // Show detailed error if available
+      if (error.response?.data?.details) {
+        const details = error.response.data.details;
+        if (details.accountAge) {
+          toast.info(`Account age: ${details.accountAge} hours, need 48 hours`);
+        }
+        if (details.storageUsed) {
+          toast.info(`Storage used: ${details.storageUsed} MB, need >0.14 MB`);
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Check if current user is admin
   const isAdmin = currentUser?.role === 'admin';
+
+  // Determine if user can add users
+  const canAddUsers = eligibility.meetsAgeRequirement && eligibility.meetsStorageRequirement;
+  
+  // Get requirement messages
+  const getRequirementMessage = () => {
+    if (eligibility.loading) return 'Checking requirements...';
+    
+    const messages = [];
+    if (!eligibility.meetsAgeRequirement) {
+      messages.push(`⏱️ Need ${eligibility.hoursRemaining} more hours (currently ${eligibility.accountAge}h)`);
+    }
+    if (!eligibility.meetsStorageRequirement) {
+      messages.push(`💾 Need ${eligibility.storageNeeded} MB more storage (currently ${eligibility.storageUsed} MB)`);
+    }
+    return messages;
+  };
+
+  const requirementMessages = getRequirementMessage();
+
+  // Calculate progress percentages
+  const ageProgress = Math.min((eligibility.accountAgeHours / 48) * 100, 100);
+  const storageProgress = Math.min((eligibility.storageUsedMB / 0.14) * 100, 100);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -145,6 +230,106 @@ const AddUser = () => {
             </div>
           </div>
         </div>
+
+        {/* Requirements Status Banner */}
+        {isAdmin && !eligibility.loading && (
+          <div className={`mx-6 mt-4 p-5 rounded-lg ${
+            canAddUsers 
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+              : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+          }`}>
+            <div className="flex items-start gap-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                canAddUsers 
+                  ? 'bg-green-100 dark:bg-green-900/30' 
+                  : 'bg-yellow-100 dark:bg-yellow-900/30'
+              }`}>
+                {canAddUsers ? (
+                  <MdCheckCircle className="text-green-600 dark:text-green-400 text-xl" />
+                ) : (
+                  <MdWarning className="text-yellow-600 dark:text-yellow-400 text-xl" />
+                )}
+              </div>
+              <div className="flex-1">
+                <h3 className={`font-semibold text-lg mb-2 ${
+                  canAddUsers 
+                    ? 'text-green-800 dark:text-green-400' 
+                    : 'text-yellow-800 dark:text-yellow-400'
+                }`}>
+                  {canAddUsers ? '✅ You can add users!' : '⚠️ Requirements not met'}
+                </h3>
+                
+                <div className="space-y-4">
+                  {/* Account Age Requirement */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <MdAccessTime className="text-gray-500 dark:text-gray-400" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Account Age
+                        </span>
+                      </div>
+                      <span className={`text-sm font-medium ${
+                        eligibility.meetsAgeRequirement 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-yellow-600 dark:text-yellow-400'
+                      }`}>
+                        {eligibility.accountAge} / 48 hours
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                      <div 
+                        className={`h-2.5 rounded-full transition-all duration-500 ${
+                          eligibility.meetsAgeRequirement ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}
+                        style={{ width: `${ageProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Storage Usage Requirement */}
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="flex items-center gap-2">
+                        <MdStorage className="text-gray-500 dark:text-gray-400" />
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Storage Used
+                        </span>
+                      </div>
+                      <span className={`text-sm font-medium ${
+                        eligibility.meetsStorageRequirement 
+                          ? 'text-green-600 dark:text-green-400' 
+                          : 'text-yellow-600 dark:text-yellow-400'
+                      }`}>
+                        {eligibility.storageUsed} / 0.14 MB
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                      <div 
+                        className={`h-2.5 rounded-full transition-all duration-500 ${
+                          eligibility.meetsStorageRequirement ? 'bg-green-500' : 'bg-yellow-500'
+                        }`}
+                        style={{ width: `${storageProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Requirement Messages */}
+                  {requirementMessages.length > 0 && (
+                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/40 rounded-lg">
+                      {requirementMessages.map((msg, i) => (
+                        <p key={i} className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                          <MdHourglassEmpty className="text-yellow-600 dark:text-yellow-400" />
+                          {msg}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -161,6 +346,7 @@ const AddUser = () => {
                     errors.username ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Enter username"
+                  disabled={loading || (isAdmin && !canAddUsers)}
                 />
               </div>
               {errors.username && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.username}</p>}
@@ -180,6 +366,7 @@ const AddUser = () => {
                     errors.email ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Enter email address"
+                  disabled={loading || (isAdmin && !canAddUsers)}
                 />
               </div>
               {errors.email && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.email}</p>}
@@ -193,7 +380,6 @@ const AddUser = () => {
                 <MdAdminPanelSettings className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                 
                 {isAdmin ? (
-                  // 🔒 Admin: Show disabled select with only 'user' option
                   <>
                     <select
                       value="user"
@@ -205,7 +391,6 @@ const AddUser = () => {
                     <input type="hidden" name="role" value="user" />
                   </>
                 ) : (
-                  // SuperAdmin: Show all roles
                   <select
                     value={formData.role}
                     onChange={(e) => setFormData({...formData, role: e.target.value})}
@@ -228,7 +413,6 @@ const AddUser = () => {
                 )}
               </div>
               
-              {/* 🔒 Info message for admin */}
               {isAdmin && (
                 <div className="mt-2 flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
                   <MdInfo size={14} />
@@ -253,6 +437,7 @@ const AddUser = () => {
                     errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Enter password"
+                  disabled={loading || (isAdmin && !canAddUsers)}
                 />
               </div>
               {errors.password && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.password}</p>}
@@ -272,6 +457,7 @@ const AddUser = () => {
                     errors.confirmPassword ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                   placeholder="Confirm password"
+                  disabled={loading || (isAdmin && !canAddUsers)}
                 />
               </div>
               {errors.confirmPassword && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.confirmPassword}</p>}
@@ -293,13 +479,14 @@ const AddUser = () => {
                   setErrors({});
                 }}
                 className="px-6 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                disabled={loading}
               >
                 <MdClear size={18} />
                 Clear
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (isAdmin && !canAddUsers)}
                 className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 dark:bg-orange-600 dark:hover:bg-orange-700 text-white font-medium rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2"
               >
                 {loading ? 'Creating...' : 'Create User'}
