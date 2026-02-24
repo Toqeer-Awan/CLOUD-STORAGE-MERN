@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 import FileTable from '../components/FileTable';
-import { setFiles, removeFile } from '../redux/slices/fileSlice';
+import { setFiles, removeFile, removeMultipleFiles } from '../redux/slices/fileSlice';
 import { fileAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
 import { 
   MdSearch, MdFilterList, MdSort, MdRefresh, 
   MdStorage, MdImage, MdVideoLibrary,
-  MdPictureAsPdf, MdDescription, MdInsertDriveFile
+  MdPictureAsPdf, MdDescription, MdInsertDriveFile,
+  MdDeleteSweep, MdCheckBox, MdCheckBoxOutlineBlank,
+  MdArrowUpward, MdArrowDownward
 } from "react-icons/md";
 
 const AllFiles = () => {
@@ -19,8 +21,17 @@ const AllFiles = () => {
   const { user } = useSelector((state) => state.auth);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [sortBy, setSortBy] = useState('date');
+  
+  // NEW: Combined sort option
+  const [sortOption, setSortOption] = useState('date-desc'); // Format: field-direction
+  
+  // Selection state
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  
   const [loading, setLoading] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  
   const toast = useToast();
 
   // Parse URL query parameters on mount
@@ -35,6 +46,12 @@ const AllFiles = () => {
   useEffect(() => {
     fetchFiles();
   }, []);
+
+  // Reset selection when files change
+  useEffect(() => {
+    setSelectedFiles([]);
+    setSelectAll(false);
+  }, [files]);
 
   const fetchFiles = async () => {
     setLoading(true);
@@ -67,9 +84,72 @@ const AllFiles = () => {
     }
   };
 
-  const handleDeleteFile = async (fileId) => {
-    if (!fileId) return;
+  // Handle single file selection
+  const handleSelectFile = (fileId) => {
+    setSelectedFiles(prev => {
+      if (prev.includes(fileId)) {
+        return prev.filter(id => id !== fileId);
+      } else {
+        return [...prev, fileId];
+      }
+    });
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (selectedFiles.length === filteredFiles.length) {
+      setSelectedFiles([]);
+    } else {
+      setSelectedFiles(filteredFiles.map(f => f.id || f._id));
+    }
+  };
+
+  // Clear selection
+  const handleClearSelection = () => {
+    setSelectedFiles([]);
+  };
+
+  // Bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedFiles.length === 0) return;
     
+    const confirmMessage = selectedFiles.length === 1 
+      ? 'Are you sure you want to delete this file?' 
+      : `Are you sure you want to delete ${selectedFiles.length} files?`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    setBulkLoading(true);
+    const loadingToast = toast.loading(`Deleting ${selectedFiles.length} file(s)...`);
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const fileId of selectedFiles) {
+      try {
+        await fileAPI.deleteFile(fileId);
+        dispatch(removeFile(fileId));
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Failed to delete file ${fileId}:`, error);
+        failCount++;
+      }
+    }
+    
+    toast.dismiss(loadingToast);
+    
+    if (successCount > 0) {
+      toast.success(`Successfully deleted ${successCount} file(s)`);
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to delete ${failCount} file(s)`);
+    }
+    
+    setSelectedFiles([]);
+    setBulkLoading(false);
+  };
+
+  const handleDeleteFile = async (fileId) => {
     const file = files.find(f => f._id === fileId || f.id === fileId);
     if (!file) return;
     
@@ -84,6 +164,9 @@ const AllFiles = () => {
       toast.dismiss(loadingToast);
       dispatch(removeFile(fileId));
       toast.success('File deleted successfully');
+      
+      // Remove from selected if it was selected
+      setSelectedFiles(prev => prev.filter(id => id !== fileId));
     } catch (error) {
       toast.dismiss(loadingToast);
       const errorMessage = error.response?.data?.error || 'Failed to delete file';
@@ -100,7 +183,30 @@ const AllFiles = () => {
     return 'other';
   };
 
-  // Filter and sort files
+  // NEW: Parse sort option and apply sorting
+  const getSortedFiles = () => {
+    const [field, direction] = sortOption.split('-');
+    
+    return [...filteredFiles].sort((a, b) => {
+      let comparison = 0;
+      
+      if (field === 'name') {
+        const nameA = (a.displayName || a.name || '').toLowerCase();
+        const nameB = (b.displayName || b.name || '').toLowerCase();
+        comparison = nameA.localeCompare(nameB);
+      }
+      else if (field === 'size') {
+        comparison = (a.size || 0) - (b.size || 0);
+      }
+      else { // date
+        comparison = new Date(a.uploadedAt || 0) - new Date(b.uploadedAt || 0);
+      }
+      
+      return direction === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  // Filter files
   const filteredFiles = files.filter(file => {
     const category = getFileCategory(file.type);
     const fileName = file.displayName || file.name || '';
@@ -112,16 +218,10 @@ const AllFiles = () => {
     const matchesType = filterType === 'all' || category === filterType;
     
     return matchesSearch && matchesType;
-  }).sort((a, b) => {
-    if (sortBy === 'name') {
-      const nameA = (a.displayName || a.name || '').toLowerCase();
-      const nameB = (b.displayName || b.name || '').toLowerCase();
-      return nameA.localeCompare(nameB);
-    }
-    if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
-    // Default sort by date (newest first)
-    return new Date(b.uploadedAt || 0) - new Date(a.uploadedAt || 0);
   });
+
+  // Get sorted files
+  const sortedFiles = getSortedFiles();
 
   // Calculate stats for filtered files
   const totalSize = filteredFiles.reduce((acc, file) => acc + (file.size || 0), 0);
@@ -151,6 +251,20 @@ const AllFiles = () => {
     { id: 'other', label: 'Others', icon: MdInsertDriveFile, color: 'gray' },
   ];
 
+  // NEW: Sort options with icons
+  const sortOptions = [
+    { value: 'date-desc', label: 'Upload Date (Newest First)', icon: MdArrowDownward },
+    { value: 'date-asc', label: 'Upload Date (Oldest First)', icon: MdArrowUpward },
+    { value: 'name-asc', label: 'File Name (A to Z)', icon: MdArrowUpward },
+    { value: 'name-desc', label: 'File Name (Z to A)', icon: MdArrowDownward },
+    { value: 'size-desc', label: 'File Size (Largest First)', icon: MdArrowDownward },
+    { value: 'size-asc', label: 'File Size (Smallest First)', icon: MdArrowUpward },
+  ];
+
+  // Get current sort option display
+  const currentSortOption = sortOptions.find(option => option.value === sortOption) || sortOptions[0];
+  const CurrentSortIcon = currentSortOption.icon;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -169,16 +283,37 @@ const AllFiles = () => {
                   Filtered by: {filterType}
                 </span>
               )}
+              {selectedFiles.length > 0 && (
+                <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 text-sm rounded-full">
+                  {selectedFiles.length} selected
+                </span>
+              )}
             </div>
           </div>
-          <button 
-            onClick={fetchFiles} 
-            disabled={loading} 
-            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
-          >
-            <MdRefresh className={loading ? 'animate-spin' : ''} />
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <div className="flex gap-2">
+            {selectedFiles.length > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkLoading}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+              >
+                {bulkLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                ) : (
+                  <MdDeleteSweep size={18} />
+                )}
+                {bulkLoading ? 'Deleting...' : `Delete (${selectedFiles.length})`}
+              </button>
+            )}
+            <button 
+              onClick={fetchFiles} 
+              disabled={loading} 
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 transition-colors"
+            >
+              <MdRefresh className={loading ? 'animate-spin' : ''} />
+              {loading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
         </div>
 
         {/* Filter Buttons */}
@@ -217,9 +352,39 @@ const AllFiles = () => {
             );
           })}
         </div>
+
+        {/* Selection Info Bar */}
+        {selectedFiles.length > 0 && (
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSelectAll}
+                className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200"
+              >
+                {selectedFiles.length === filteredFiles.length ? (
+                  <MdCheckBox className="text-xl" />
+                ) : (
+                  <MdCheckBoxOutlineBlank className="text-xl" />
+                )}
+                <span className="text-sm font-medium">
+                  {selectedFiles.length === filteredFiles.length ? 'Deselect All' : 'Select All'}
+                </span>
+              </button>
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                {selectedFiles.length} of {filteredFiles.length} selected
+              </span>
+            </div>
+            <button
+              onClick={handleClearSelection}
+              className="text-sm text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 underline"
+            >
+              Clear Selection
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Search and Sort */}
+      {/* Search and Sort - UPDATED with combined dropdown */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -245,14 +410,25 @@ const AllFiles = () => {
             <div className="relative">
               <MdSort className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                value={sortOption}
+                onChange={(e) => setSortOption(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent appearance-none"
               >
-                <option value="date">Date Uploaded</option>
-                <option value="name">File Name</option>
-                <option value="size">File Size</option>
+                {sortOptions.map(option => {
+                  const Icon = option.icon;
+                  return (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  );
+                })}
               </select>
+            </div>
+            
+            {/* Current sort indicator */}
+            <div className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <CurrentSortIcon size={14} />
+              <span>Currently: {currentSortOption.label}</span>
             </div>
           </div>
         </div>
@@ -287,8 +463,13 @@ const AllFiles = () => {
           </div>
         ) : (
           <FileTable 
-            files={filteredFiles} 
-            onRemoveFile={handleDeleteFile} 
+            files={sortedFiles} 
+            onRemoveFile={handleDeleteFile}
+            showCheckboxes={true}
+            selectedFiles={selectedFiles}
+            onSelectFile={handleSelectFile}
+            onSelectAll={handleSelectAll}
+            onBulkDelete={handleBulkDelete}
           />
         )}
       </div>

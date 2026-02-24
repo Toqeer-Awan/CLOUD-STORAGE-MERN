@@ -37,7 +37,9 @@ const MainLayout = () => {
     { path: '/upload', icon: MdUpload, label: 'Upload Files', roles: ['admin', 'user'] },
     { path: '/files', icon: MdFolder, label: 'All Files', roles: ['admin', 'user'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
     { path: '/company', icon: MdBusiness, label: 'My Company', roles: ['admin'] },
-    { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
+    // SIMPLE USER CREATION MENU ITEM COMMENTED START
+    // { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
+    // SIMPLE USER CREATION MENU ITEM COMMENTED END
     // SUPERADMIN COMMENTED START
     // { path: '/users/list', icon: MdList, label: 'User List', roles: ['superAdmin'] },
     // { path: '/roles', icon: MdSecurity, label: 'Roles & Permissions', roles: ['superAdmin'] },

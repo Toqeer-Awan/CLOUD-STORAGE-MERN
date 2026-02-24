@@ -20,6 +20,11 @@ const fileSlice = createSlice({
     removeFile: (state, action) => {
       state.files = state.files.filter(file => file._id !== action.payload);
     },
+    // NEW: Remove multiple files at once
+    removeMultipleFiles: (state, action) => {
+      const fileIds = action.payload;
+      state.files = state.files.filter(file => !fileIds.includes(file._id) && !fileIds.includes(file.id));
+    },
     setUploadProgress: (state, action) => {
       const { fileId, progress } = action.payload;
       state.uploadProgress[fileId] = progress;
@@ -36,5 +41,15 @@ const fileSlice = createSlice({
   },
 });
 
-export const { setFiles, addFile, removeFile, setUploadProgress, setLoading, setError, clearError } = fileSlice.actions;
+export const { 
+  setFiles, 
+  addFile, 
+  removeFile, 
+  removeMultipleFiles, // NEW
+  setUploadProgress, 
+  setLoading, 
+  setError, 
+  clearError 
+} = fileSlice.actions;
+
 export default fileSlice.reducer;

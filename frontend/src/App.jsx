@@ -12,7 +12,7 @@ import AllFiles from './pages/AllFiles';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import OAuthCallback from './pages/OAuthCallback';
-import AddUser from './pages/AddUser';
+// SIMPLE USER CREATION PAGE COMMENTED: import AddUser from './pages/AddUser';
 // SUPERADMIN COMMENTED START
 // import UserList from './pages/UserList';
 // import RolesPermissions from './pages/RolePermissions';
@@ -83,11 +83,13 @@ function App() {
                   </AdminRoute>
                 } />
                 
-                <Route path="users/add" element={
+                {/* SIMPLE USER CREATION ROUTE COMMENTED START */}
+                {/* <Route path="users/add" element={
                   <AdminRoute>
                     <AddUser />
                   </AdminRoute>
-                } />
+                } /> */}
+                {/* SIMPLE USER CREATION ROUTE COMMENTED END */}
                 
                 {/* SUPERADMIN COMMENTED START */}
                 {/* <Route path="users/list" element={

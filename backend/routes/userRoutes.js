@@ -1,12 +1,12 @@
 import express from 'express';
 import { protect, admin } from '../middleware/auth.js';
-import { validateUserCreation } from '../middleware/validateUserCreation.js'; // NEW
+// SIMPLE USER CREATION MIDDLEWARE COMMENTED: import { validateUserCreation } from '../middleware/validateUserCreation.js'; // NEW
 import {
   // SUPERADMIN COMMENTED: getAllUsers,
   getCompanyUsers,
-  createUser,
+  // SIMPLE USER CREATION COMMENTED: createUser,
   updateUserRole,
-  deleteUser,
+  // SIMPLE USER DELETION COMMENTED: deleteUser,
   getUserPermissions,
   getAllRolesPermissions,
   getQuota,
@@ -33,9 +33,9 @@ router.get('/permissions/me', getUserPermissions);
 // Admin routes
 // SUPERADMIN COMMENTED: router.get('/', admin, getAllUsers);
 router.get('/company/:companyId', admin, getCompanyUsers);
-router.post('/', admin, validateUserCreation, createUser); // NEW: Added validation middleware
+// SIMPLE USER CREATION COMMENTED: router.post('/', admin, validateUserCreation, createUser); // NEW: Added validation middleware
 router.put('/:id/role', admin, updateUserRole);
-router.delete('/:id', admin, deleteUser);
+// SIMPLE USER DELETION COMMENTED: router.delete('/:id', admin, deleteUser);
 
 // Global roles & permissions (admin only)
 router.get('/permissions', admin, getAllRolesPermissions);

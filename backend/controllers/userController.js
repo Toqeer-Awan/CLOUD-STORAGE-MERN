@@ -48,154 +48,156 @@ export const getCompanyUsers = async (req, res) => {
   }
 };
 
-// @desc    Create a new user
-// @route   POST /api/users
-// @access  Private/Admin
-export const createUser = async (req, res) => {
-  try {
-    const { username, email, password, role } = req.body;
-    
-    console.log('📝 Creating user with data:', { username, email, role });
-    
-    if (!username || !email || !password) {
-      return res.status(400).json({ error: 'Please provide username, email and password' });
-    }
-
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
-
-    let companyId = null;
-    let company = null;
-    
-    // NEW: Get the admin user (current user)
-    const admin = await User.findById(req.user.id);
-    if (!admin) {
-      return res.status(404).json({ error: 'Admin not found' });
-    }
-
-    // NEW: Check if admin has company
-    if (!admin.company) {
-      return res.status(403).json({ 
-        error: 'You do not have a company. Please contact support.' 
-      });
-    }
-
-    // Get the company
-    company = await Company.findById(admin.company);
-    if (!company) {
-      return res.status(404).json({ error: 'Company not found' });
-    }
-
-    // 🔥 NEW: CHECK ACCOUNT AGE (48 hours = 172800000 milliseconds)
-    const ACCOUNT_AGE_REQUIREMENT = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
-    const STORAGE_REQUIREMENT = 0.14 * 1024 * 1024; // 0.14 MB in bytes (143360 bytes ≈ 140 KB)
-
-    const accountAge = Date.now() - new Date(admin.createdAt).getTime();
-    const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
-    
-    console.log('🔍 Admin eligibility check:', {
-      username: admin.username,
-      accountAge: `${accountAgeInHours} hours`,
-      requiredAge: '48 hours',
-      storageUsed: `${(admin.storageUsed / (1024 * 1024)).toFixed(2)} MB`,
-      requiredStorage: '0.14 MB',
-      meetsAgeRequirement: accountAge >= ACCOUNT_AGE_REQUIREMENT,
-      meetsStorageRequirement: admin.storageUsed > STORAGE_REQUIREMENT
-    });
-
-    // Check account age requirement
-    if (accountAge < ACCOUNT_AGE_REQUIREMENT) {
-      const hoursRemaining = ((ACCOUNT_AGE_REQUIREMENT - accountAge) / (60 * 60 * 1000)).toFixed(1);
-      return res.status(403).json({ 
-        error: 'Account too new to add users',
-        message: `Your account is only ${accountAgeInHours} hours old. You need to wait ${hoursRemaining} more hours before you can add users.`,
-        details: {
-          accountAge: accountAgeInHours,
-          requiredAge: '48',
-          hoursRemaining: hoursRemaining,
-          meetsRequirement: false
-        }
-      });
-    }
-
-    // Check storage usage requirement
-    if (admin.storageUsed <= STORAGE_REQUIREMENT) {
-      const storageNeededMB = ((STORAGE_REQUIREMENT - admin.storageUsed) / (1024 * 1024)).toFixed(2);
-      return res.status(403).json({ 
-        error: 'Insufficient storage usage',
-        message: `You need to use more than 0.14 MB of storage before adding users. Currently using ${(admin.storageUsed / (1024 * 1024)).toFixed(2)} MB. Upload at least ${storageNeededMB} MB more.`,
-        details: {
-          storageUsed: (admin.storageUsed / (1024 * 1024)).toFixed(2),
-          requiredStorage: '0.14',
-          storageNeeded: storageNeededMB,
-          meetsRequirement: false
-        }
-      });
-    }
-
-    console.log('✅ Admin meets all requirements, proceeding with user creation');
-
-    // Users always belong to admin's company
-    companyId = admin.company;
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    let permissions = {
-      view: true, upload: true, download: true, delete: false,
-      addUser: false, removeUser: false, changeRole: false,
-      manageFiles: false, manageStorage: false, assignStorage: false
-    };
-
-    if (role === 'admin') {
-      permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true,
-        manageFiles: true, manageStorage: true, assignStorage: true
-      };
-    }
-
-    let storageAllocated = 0;
-    if (role === 'admin' && company) {
-      storageAllocated = company.totalStorage || 50 * 1024 * 1024 * 1024;
-    }
-
-    const user = new User({
-      username,
-      email,
-      password: hashedPassword,
-      role: role || 'user',
-      company: companyId,
-      addedBy: req.user.id,
-      storageAllocated,
-      storageUsed: 0,
-      allocatedToUsers: 0,
-      permissions
-    });
-
-    await user.save();
-    console.log('✅ User created with ID:', user._id);
-
-    if (company) {
-      company.userCount = await User.countDocuments({ company: company._id });
-      await company.save();
-    }
-
-    const userResponse = user.toObject();
-    delete userResponse.password;
-
-    res.status(201).json({
-      message: 'User created successfully',
-      user: userResponse
-    });
-
-  } catch (error) {
-    console.error('❌ Create user error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// SIMPLE USER CREATION COMMENTED START
+// // @desc    Create a new user
+// // @route   POST /api/users
+// // @access  Private/Admin
+// export const createUser = async (req, res) => {
+//   try {
+//     const { username, email, password, role } = req.body;
+//     
+//     console.log('📝 Creating user with data:', { username, email, role });
+//     
+//     if (!username || !email || !password) {
+//       return res.status(400).json({ error: 'Please provide username, email and password' });
+//     }
+// 
+//     const userExists = await User.findOne({ email });
+//     if (userExists) {
+//       return res.status(400).json({ error: 'User already exists' });
+//     }
+// 
+//     let companyId = null;
+//     let company = null;
+//     
+//     // NEW: Get the admin user (current user)
+//     const admin = await User.findById(req.user.id);
+//     if (!admin) {
+//       return res.status(404).json({ error: 'Admin not found' });
+//     }
+// 
+//     // NEW: Check if admin has company
+//     if (!admin.company) {
+//       return res.status(403).json({ 
+//         error: 'You do not have a company. Please contact support.' 
+//       });
+//     }
+// 
+//     // Get the company
+//     company = await Company.findById(admin.company);
+//     if (!company) {
+//       return res.status(404).json({ error: 'Company not found' });
+//     }
+// 
+//     // 🔥 NEW: CHECK ACCOUNT AGE (48 hours = 172800000 milliseconds)
+//     const ACCOUNT_AGE_REQUIREMENT = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
+//     const STORAGE_REQUIREMENT = 0.14 * 1024 * 1024; // 0.14 MB in bytes (143360 bytes ≈ 140 KB)
+// 
+//     const accountAge = Date.now() - new Date(admin.createdAt).getTime();
+//     const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
+//     
+//     console.log('🔍 Admin eligibility check:', {
+//       username: admin.username,
+//       accountAge: `${accountAgeInHours} hours`,
+//       requiredAge: '48 hours',
+//       storageUsed: `${(admin.storageUsed / (1024 * 1024)).toFixed(2)} MB`,
+//       requiredStorage: '0.14 MB',
+//       meetsAgeRequirement: accountAge >= ACCOUNT_AGE_REQUIREMENT,
+//       meetsStorageRequirement: admin.storageUsed > STORAGE_REQUIREMENT
+//     });
+// 
+//     // Check account age requirement
+//     if (accountAge < ACCOUNT_AGE_REQUIREMENT) {
+//       const hoursRemaining = ((ACCOUNT_AGE_REQUIREMENT - accountAge) / (60 * 60 * 1000)).toFixed(1);
+//       return res.status(403).json({ 
+//         error: 'Account too new to add users',
+//         message: `Your account is only ${accountAgeInHours} hours old. You need to wait ${hoursRemaining} more hours before you can add users.`,
+//         details: {
+//           accountAge: accountAgeInHours,
+//           requiredAge: '48',
+//           hoursRemaining: hoursRemaining,
+//           meetsRequirement: false
+//         }
+//       });
+//     }
+// 
+//     // Check storage usage requirement
+//     if (admin.storageUsed <= STORAGE_REQUIREMENT) {
+//       const storageNeededMB = ((STORAGE_REQUIREMENT - admin.storageUsed) / (1024 * 1024)).toFixed(2);
+//       return res.status(403).json({ 
+//         error: 'Insufficient storage usage',
+//         message: `You need to use more than 0.14 MB of storage before adding users. Currently using ${(admin.storageUsed / (1024 * 1024)).toFixed(2)} MB. Upload at least ${storageNeededMB} MB more.`,
+//         details: {
+//           storageUsed: (admin.storageUsed / (1024 * 1024)).toFixed(2),
+//           requiredStorage: '0.14',
+//           storageNeeded: storageNeededMB,
+//           meetsRequirement: false
+//         }
+//       });
+//     }
+// 
+//     console.log('✅ Admin meets all requirements, proceeding with user creation');
+// 
+//     // Users always belong to admin's company
+//     companyId = admin.company;
+// 
+//     const salt = await bcrypt.genSalt(10);
+//     const hashedPassword = await bcrypt.hash(password, salt);
+// 
+//     let permissions = {
+//       view: true, upload: true, download: true, delete: false,
+//       addUser: false, removeUser: false, changeRole: false,
+//       manageFiles: false, manageStorage: false, assignStorage: false
+//     };
+// 
+//     if (role === 'admin') {
+//       permissions = {
+//         view: true, upload: true, download: true, delete: true,
+//         addUser: true, removeUser: true, changeRole: true,
+//         manageFiles: true, manageStorage: true, assignStorage: true
+//       };
+//     }
+// 
+//     let storageAllocated = 0;
+//     if (role === 'admin' && company) {
+//       storageAllocated = company.totalStorage || 50 * 1024 * 1024 * 1024;
+//     }
+// 
+//     const user = new User({
+//       username,
+//       email,
+//       password: hashedPassword,
+//       role: role || 'user',
+//       company: companyId,
+//       addedBy: req.user.id,
+//       storageAllocated,
+//       storageUsed: 0,
+//       allocatedToUsers: 0,
+//       permissions
+//     });
+// 
+//     await user.save();
+//     console.log('✅ User created with ID:', user._id);
+// 
+//     if (company) {
+//       company.userCount = await User.countDocuments({ company: company._id });
+//       await company.save();
+//     }
+// 
+//     const userResponse = user.toObject();
+//     delete userResponse.password;
+// 
+//     res.status(201).json({
+//       message: 'User created successfully',
+//       user: userResponse
+//     });
+// 
+//   } catch (error) {
+//     console.error('❌ Create user error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER CREATION COMMENTED END
 
 // @desc    Update user role
 // @route   PUT /api/users/:id/role
@@ -254,55 +256,57 @@ export const updateUserRole = async (req, res) => {
   }
 };
 
-// @desc    Delete user
-// @route   DELETE /api/users/:id
-// @access  Private/Admin
-export const deleteUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id);
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (user._id.toString() === req.user.id.toString()) {
-      return res.status(400).json({ error: 'Cannot delete your own account' });
-    }
-
-    if (user.role === 'user' && user.storageAllocated > 0) {
-      const admin = await User.findOne({ 
-        company: user.company, 
-        role: 'admin' 
-      });
-      
-      if (admin) {
-        admin.allocatedToUsers = (admin.allocatedToUsers || 0) - user.storageAllocated;
-        await admin.save();
-        console.log(`✅ Updated admin ${admin.username} allocatedToUsers: -${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
-      }
-    }
-
-    if (user.company) {
-      const company = await Company.findById(user.company);
-      if (company) {
-        company.userCount = Math.max(0, (company.userCount || 1) - 1);
-        await company.save();
-      }
-    }
-
-    await User.findByIdAndDelete(req.params.id);
-    console.log('✅ User deleted successfully:', user.username);
-    
-    res.json({ 
-      success: true,
-      message: 'User deleted successfully' 
-    });
-    
-  } catch (error) {
-    console.error('❌ Delete user error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// SIMPLE USER DELETION COMMENTED START
+// // @desc    Delete user
+// // @route   DELETE /api/users/:id
+// // @access  Private/Admin
+// export const deleteUser = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id);
+//     
+//     if (!user) {
+//       return res.status(404).json({ error: 'User not found' });
+//     }
+// 
+//     if (user._id.toString() === req.user.id.toString()) {
+//       return res.status(400).json({ error: 'Cannot delete your own account' });
+//     }
+// 
+//     if (user.role === 'user' && user.storageAllocated > 0) {
+//       const admin = await User.findOne({ 
+//         company: user.company, 
+//         role: 'admin' 
+//       });
+//       
+//       if (admin) {
+//         admin.allocatedToUsers = (admin.allocatedToUsers || 0) - user.storageAllocated;
+//         await admin.save();
+//         console.log(`✅ Updated admin ${admin.username} allocatedToUsers: -${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
+//       }
+//     }
+// 
+//     if (user.company) {
+//       const company = await Company.findById(user.company);
+//       if (company) {
+//         company.userCount = Math.max(0, (company.userCount || 1) - 1);
+//         await company.save();
+//       }
+//     }
+// 
+//     await User.findByIdAndDelete(req.params.id);
+//     console.log('✅ User deleted successfully:', user.username);
+//     
+//     res.json({ 
+//       success: true,
+//       message: 'User deleted successfully' 
+//     });
+//     
+//   } catch (error) {
+//     console.error('❌ Delete user error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER DELETION COMMENTED END
 
 // @desc    Get current user permissions
 // @route   GET /api/users/permissions/me
@@ -556,9 +560,9 @@ export const getQuota = async (req, res) => {
 export default {
   // SUPERADMIN COMMENTED: getAllUsers,
   getCompanyUsers,
-  createUser,
+  // SIMPLE USER CREATION COMMENTED: createUser,
   updateUserRole,
-  deleteUser,
+  // SIMPLE USER DELETION COMMENTED: deleteUser,
   getUserPermissions,
   getAllRolesPermissions,
   // SUPERADMIN COMMENTED: updateAllRolesPermissions,

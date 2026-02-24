@@ -2,12 +2,22 @@ import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import {
   MdDelete, MdImage, MdPictureAsPdf, MdDescription, MdVideoLibrary,
-  MdInsertDriveFile, MdDownload, MdVisibility, MdCloud
+  MdInsertDriveFile, MdDownload, MdVisibility, MdCloud, MdCheckBox,
+  MdCheckBoxOutlineBlank, MdIndeterminateCheckBox
 } from 'react-icons/md';
 import useToast from '../hooks/useToast';
 import downloadService from '../services/downloadService';
 
-const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
+const FileTable = ({ 
+  files = [], 
+  onRemoveFile, 
+  isUploading = false,
+  showCheckboxes = true,
+  selectedFiles = [],
+  onSelectFile,
+  onSelectAll,
+  onBulkDelete 
+}) => {
   const { user } = useSelector((state) => state.auth);
   const [downloadingId, setDownloadingId] = useState(null);
   const toast = useToast();
@@ -79,6 +89,31 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
     }
   };
 
+  // Check if all files are selected
+  const allSelected = files.length > 0 && selectedFiles.length === files.length;
+  const someSelected = selectedFiles.length > 0 && selectedFiles.length < files.length;
+
+  // Handle individual file selection
+  const handleSelectFile = (fileId) => {
+    if (onSelectFile) {
+      onSelectFile(fileId);
+    }
+  };
+
+  // Handle select all
+  const handleSelectAll = () => {
+    if (onSelectAll) {
+      onSelectAll();
+    }
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = () => {
+    if (onBulkDelete && selectedFiles.length > 0) {
+      onBulkDelete();
+    }
+  };
+
   if (!files || files.length === 0) {
     return (
       <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
@@ -95,9 +130,46 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
 
   return (
     <div className="overflow-x-auto">
+      {/* Bulk Actions Bar - Show when files are selected */}
+      {selectedFiles.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} selected
+            </span>
+          </div>
+          <button
+            onClick={handleBulkDelete}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 text-white text-sm rounded-lg transition-colors flex items-center gap-2"
+          >
+            <MdDelete size={16} />
+            Delete Selected
+          </button>
+        </div>
+      )}
+
       <table className="min-w-full bg-white dark:bg-gray-800">
         <thead className="bg-gray-50 dark:bg-gray-700">
           <tr>
+            {showCheckboxes && (
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 w-10">
+                <div className="flex items-center">
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    title={allSelected ? "Deselect all" : "Select all"}
+                  >
+                    {allSelected ? (
+                      <MdCheckBox className="text-blue-600 dark:text-blue-400 text-xl" />
+                    ) : someSelected ? (
+                      <MdIndeterminateCheckBox className="text-blue-600 dark:text-blue-400 text-xl" />
+                    ) : (
+                      <MdCheckBoxOutlineBlank className="text-xl" />
+                    )}
+                  </button>
+                </div>
+              </th>
+            )}
             <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">File</th>
             <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Type</th>
             <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300">Size</th>
@@ -108,13 +180,33 @@ const FileTable = ({ files = [], onRemoveFile, isUploading = false }) => {
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {files.map((file, index) => {
             const fileId = file.id || file._id || `${file.name}-${index}`;
+            const isSelected = selectedFiles.includes(fileId);
             
             // Use displayName if available (without path), otherwise use name
             const displayName = file.displayName || file.name || 'Unnamed file';
             const fullPath = file.path || file.name || '';
             
             return (
-              <tr key={fileId} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              <tr 
+                key={fileId} 
+                className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                  isSelected ? 'bg-blue-50 dark:bg-blue-900/10' : ''
+                }`}
+              >
+                {showCheckboxes && (
+                  <td className="py-3 px-4">
+                    <button
+                      onClick={() => handleSelectFile(fileId)}
+                      className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                    >
+                      {isSelected ? (
+                        <MdCheckBox className="text-blue-600 dark:text-blue-400 text-xl" />
+                      ) : (
+                        <MdCheckBoxOutlineBlank className="text-xl" />
+                      )}
+                    </button>
+                  </td>
+                )}
                 <td className="py-3 px-4">
                   <div className="flex items-center">
                     <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded mr-3">
