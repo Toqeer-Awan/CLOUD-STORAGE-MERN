@@ -10,37 +10,337 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 // ==================== REGULAR AUTH ROUTES ====================
+
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     description: Creates a new user account. First user becomes admin with their own company.
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - username
+ *               - email
+ *               - password
+ *             properties:
+ *               username:
+ *                 type: string
+ *                 example: john_doe
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User registered successfully
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@example.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *                     company:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c86
+ *                     companyName:
+ *                       type: string
+ *                       example: john_doe's Company
+ *                     storageAllocated:
+ *                       type: number
+ *                       example: 53687091200
+ *                     storageUsed:
+ *                       type: number
+ *                       example: 0
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: User already exists
+ */
 router.post('/register', register);
+
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Login user
+ *     description: Authenticate user and return JWT token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: john@example.com
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Login successful
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@example.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *                     company:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c86
+ *                     companyName:
+ *                       type: string
+ *                       example: john_doe's Company
+ *                     storageAllocated:
+ *                       type: number
+ *                       example: 53687091200
+ *                     storageUsed:
+ *                       type: number
+ *                       example: 1048576
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: Invalid email or password
+ */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   get:
+ *     summary: Get current user profile
+ *     description: Returns the authenticated user's profile information
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@example.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *                     company:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                           example: 60d21b4667d0d8992e610c86
+ *                         name:
+ *                           type: string
+ *                           example: john_doe's Company
+ *                         totalStorage:
+ *                           type: number
+ *                           example: 53687091200
+ *                         usedStorage:
+ *                           type: number
+ *                           example: 1048576
+ *                     permissions:
+ *                       type: object
+ *                       properties:
+ *                         view:
+ *                           type: boolean
+ *                           example: true
+ *                         upload:
+ *                           type: boolean
+ *                           example: true
+ *                         download:
+ *                           type: boolean
+ *                           example: true
+ *                         delete:
+ *                           type: boolean
+ *                           example: true
+ *                         addUser:
+ *                           type: boolean
+ *                           example: true
+ *                         removeUser:
+ *                           type: boolean
+ *                           example: true
+ *                         changeRole:
+ *                           type: boolean
+ *                           example: true
+ *                         manageFiles:
+ *                           type: boolean
+ *                           example: true
+ *                         manageStorage:
+ *                           type: boolean
+ *                           example: true
+ *                         assignStorage:
+ *                           type: boolean
+ *                           example: true
+ *                     storage:
+ *                       type: object
+ *                       properties:
+ *                         allocated:
+ *                           type: number
+ *                           example: 53687091200
+ *                         used:
+ *                           type: number
+ *                           example: 1048576
+ *                         available:
+ *                           type: number
+ *                           example: 52638515200
+ *                         allocatedToUsers:
+ *                           type: number
+ *                           example: 0
+ *       401:
+ *         description: Unauthorized
+ */
 router.get('/profile', protect, getProfile);
 
 // ==================== GOOGLE OAUTH ====================
 
-// Google OAuth redirect route
-router.get('/google', passport.authenticate('google', { 
-  scope: ['profile', 'email'] 
-}));
-
-// Google OAuth callback route
-router.get('/google/callback', 
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-  (req, res) => {
-    const token = jwt.sign(
-      { 
-        id: req.user._id.toString(), 
-        role: req.user.role, 
-        company: req.user.company?._id?.toString() 
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-    
-    const userData = encodeURIComponent(JSON.stringify(req.user));
-    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/oauth-callback?token=${token}&user=${userData}`);
-  }
-);
-
-// Google OAuth token endpoint
+/**
+ * @swagger
+ * /auth/google:
+ *   post:
+ *     summary: Login with Google OAuth
+ *     description: Authenticate using Google OAuth access token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - access_token
+ *             properties:
+ *               access_token:
+ *                 type: string
+ *                 description: Google OAuth access token
+ *                 example: ya29.a0AfH6SMC...
+ *     responses:
+ *       200:
+ *         description: Google login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@gmail.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *                     company:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c86
+ *                     companyName:
+ *                       type: string
+ *                       example: john_doe's Company
+ *       400:
+ *         description: Missing token
+ *       401:
+ *         description: Invalid Google token
+ */
 router.post('/google', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -171,16 +471,14 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// ==================== FACEBOOK OAUTH ====================
-
-// Facebook OAuth redirect route
-router.get('/facebook', passport.authenticate('facebook', { 
-  scope: ['email', 'public_profile'] 
+// Google OAuth redirect route
+router.get('/google', passport.authenticate('google', { 
+  scope: ['profile', 'email'] 
 }));
 
-// Facebook OAuth callback route
-router.get('/facebook/callback',
-  passport.authenticate('facebook', { session: false, failureRedirect: '/login' }),
+// Google OAuth callback route
+router.get('/google/callback', 
+  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
   (req, res) => {
     const token = jwt.sign(
       { 
@@ -197,7 +495,59 @@ router.get('/facebook/callback',
   }
 );
 
-// Facebook OAuth token endpoint
+// ==================== FACEBOOK OAUTH ====================
+
+/**
+ * @swagger
+ * /auth/facebook:
+ *   post:
+ *     summary: Login with Facebook OAuth
+ *     description: Authenticate using Facebook OAuth access token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - access_token
+ *             properties:
+ *               access_token:
+ *                 type: string
+ *                 description: Facebook OAuth access token
+ *                 example: EAAJsm...
+ *     responses:
+ *       200:
+ *         description: Facebook login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@facebook.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *       400:
+ *         description: Missing token or email not provided
+ *       401:
+ *         description: Invalid Facebook token
+ */
 router.post('/facebook', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -321,16 +671,14 @@ router.post('/facebook', async (req, res) => {
   }
 });
 
-// ==================== MICROSOFT OUTLOOK OAUTH ====================
-
-// Microsoft OAuth redirect route
-router.get('/microsoft', passport.authenticate('microsoft', { 
-  scope: ['user.read', 'offline_access']
+// Facebook OAuth redirect route
+router.get('/facebook', passport.authenticate('facebook', { 
+  scope: ['email', 'public_profile'] 
 }));
 
-// Microsoft OAuth callback route
-router.get('/microsoft/callback',
-  passport.authenticate('microsoft', { session: false, failureRedirect: '/login' }),
+// Facebook OAuth callback route
+router.get('/facebook/callback',
+  passport.authenticate('facebook', { session: false, failureRedirect: '/login' }),
   (req, res) => {
     const token = jwt.sign(
       { 
@@ -347,7 +695,59 @@ router.get('/microsoft/callback',
   }
 );
 
-// Microsoft OAuth token endpoint
+// ==================== MICROSOFT OUTLOOK OAUTH ====================
+
+/**
+ * @swagger
+ * /auth/microsoft:
+ *   post:
+ *     summary: Login with Microsoft OAuth
+ *     description: Authenticate using Microsoft OAuth access token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - access_token
+ *             properties:
+ *               access_token:
+ *                 type: string
+ *                 description: Microsoft OAuth access token
+ *                 example: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1Ni...
+ *     responses:
+ *       200:
+ *         description: Microsoft login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 token:
+ *                   type: string
+ *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: 60d21b4667d0d8992e610c85
+ *                     username:
+ *                       type: string
+ *                       example: john_doe
+ *                     email:
+ *                       type: string
+ *                       example: john@outlook.com
+ *                     role:
+ *                       type: string
+ *                       example: admin
+ *       400:
+ *         description: Missing token or email not provided
+ *       401:
+ *         description: Invalid Microsoft token
+ */
 router.post('/microsoft', async (req, res) => {
   try {
     const { access_token } = req.body;
@@ -476,8 +876,51 @@ router.post('/microsoft', async (req, res) => {
   }
 });
 
+// Microsoft OAuth redirect route
+router.get('/microsoft', passport.authenticate('microsoft', { 
+  scope: ['user.read', 'offline_access']
+}));
+
+// Microsoft OAuth callback route
+router.get('/microsoft/callback',
+  passport.authenticate('microsoft', { session: false, failureRedirect: '/login' }),
+  (req, res) => {
+    const token = jwt.sign(
+      { 
+        id: req.user._id.toString(), 
+        role: req.user.role, 
+        company: req.user.company?._id?.toString() 
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    
+    const userData = encodeURIComponent(JSON.stringify(req.user));
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/oauth-callback?token=${token}&user=${userData}`);
+  }
+);
+
 // ==================== LOGOUT ====================
 
+/**
+ * @swagger
+ * /auth/logout:
+ *   post:
+ *     summary: Logout user
+ *     description: Invalidates the current session (client should remove token)
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Logged out successfully
+ */
 router.post('/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });

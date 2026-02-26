@@ -21,6 +21,9 @@ import companyRoutes from './routes/companyRoutes.js';
 import storageRoutes from './routes/storageRoutes.js'; // 👈 NEW
 import './config/passport.js';
 import b2 from './config/b2.js';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpecs from './config/swagger.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -107,6 +110,7 @@ app.use('/api/permissions', permissionsRoutes);
 app.use('/api/companies', companyRoutes);
 app.use('/api/storage', storageRoutes); 
 
+
 // ===== TEST ENDPOINTS =====
 app.get('/api/test', (req, res) => {
   res.json({
@@ -126,6 +130,32 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// ===== SWAGGER DOCUMENTATION =====
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+  explorer: true,
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Cloud Storage API Documentation',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    tryItOutEnabled: true
+  }
+}));
+
+// Serve OpenAPI spec as JSON (optional)
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpecs);
+});
+
+// Optional: Redirect root to Swagger docs in development
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/', (req, res) => {
+    res.redirect('/api-docs');
+  });
+}
 
 // ===== 404 HANDLER =====
 app.use((req, res) => {
