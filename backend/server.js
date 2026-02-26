@@ -1,5 +1,7 @@
 // ===== ABSOLUTE FIRST LINE =====
 import dns from 'dns';
+import os from 'os';
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 dns.setDefaultResultOrder('ipv4first');
 console.log('✅ DNS: IPv4 first order SET');
 
@@ -18,15 +20,31 @@ import fileRoutes from './routes/fileRoutes.js';
 import roleRoutes from './routes/roleRoutes.js';
 import permissionsRoutes from './routes/permission.js';
 import companyRoutes from './routes/companyRoutes.js';
-import storageRoutes from './routes/storageRoutes.js'; // 👈 NEW
+import storageRoutes from './routes/storageRoutes.js';
 import './config/passport.js';
 import b2 from './config/b2.js';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpecs from './config/swagger.js';
 
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ===== GET LOCAL IP ADDRESS =====
+const getLocalIp = () => {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Skip internal and non-IPv4 addresses
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+};
+
+const LOCAL_IP = getLocalIp();
+console.log('📡 Local IP Address:', LOCAL_IP);
 
 // ===== LOAD ENVIRONMENT VARIABLES =====
 dotenv.config();
@@ -69,30 +87,118 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ===== CORS CONFIGURATION =====
+// ===== FIXED CORS CONFIGURATION =====
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173'
+  'http://127.0.0.1:5173',
+   'http://192.168.1.11:5000',
+  'http://192.168.1.11:5173',
+  `http://${LOCAL_IP}:3000`,
+  `http://${LOCAL_IP}:5173`,
+  `http://${LOCAL_IP}:5174`,
+  `http://${LOCAL_IP}:5175`,
+  `http://${LOCAL_IP}:5000`,
+  // Allow all local network IPs (for development)
+  /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(3000|5173|5174|5175|5000)$/
 ];
 
+// CORS middleware
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('⚠️  CORS blocked origin:', origin);
-      callback(null, false);
+    // Allow requests with no origin (like mobile apps, curl, Postman)
+    if (!origin) {
+      return callback(null, true);
     }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // Check regex pattern for local network IPs
+    const regexPattern = /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(3000|5173|5174|5175|5000)$/;
+    if (regexPattern.test(origin)) {
+      return callback(null, true);
+    }
+    
+    // FOR DEVELOPMENT ONLY - Allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    console.log('❌ CORS blocked origin:', origin);
+    callback(new Error(`CORS policy: ${origin} not allowed`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'X-Total-Count'],
+  optionsSuccessStatus: 200
 }));
+
+// ❌ REMOVED THE PROBLEMATIC LINE: app.options('*', cors());
+
+// Additional CORS headers middleware (for extra safety)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // In development, echo back the origin
+  if (process.env.NODE_ENV !== 'production' && origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle OPTIONS method
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+// ===== CORS TEST ENDPOINTS =====
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS is working correctly',
+    data: {
+      yourOrigin: req.headers.origin || 'No origin header',
+      yourIP: req.ip || req.connection.remoteAddress,
+      serverTime: new Date().toISOString(),
+      serverUrl: `${req.protocol}://${req.get('host')}`,
+      localIP: LOCAL_IP
+    }
+  });
+});
+
+app.get('/api/cors-debug', (req, res) => {
+  res.json({
+    message: 'CORS Debug Information',
+    headers: {
+      origin: req.headers.origin || 'No origin header',
+      host: req.headers.host,
+      referer: req.headers.referer || 'No referer',
+      'user-agent': req.headers['user-agent']
+    },
+    server: {
+      address: LOCAL_IP,
+      port: process.env.PORT || 5000,
+      url: `http://${LOCAL_IP}:${process.env.PORT || 5000}`,
+      environment: process.env.NODE_ENV || 'development'
+    },
+    cors: {
+      allowedOrigins: allowedOrigins.map(o => o.toString()),
+      credentials: true
+    }
+  });
+});
 
 // ===== BODY PARSING MIDDLEWARE =====
 app.use(express.json());
@@ -108,8 +214,7 @@ app.use('/api/files', fileRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/permissions', permissionsRoutes);
 app.use('/api/companies', companyRoutes);
-app.use('/api/storage', storageRoutes); 
-
+app.use('/api/storage', storageRoutes);
 
 // ===== TEST ENDPOINTS =====
 app.get('/api/test', (req, res) => {
@@ -132,6 +237,20 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===== SWAGGER DOCUMENTATION =====
+// Special CORS handling for Swagger
+app.use('/api-docs', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   explorer: true,
   customCss: '.swagger-ui .topbar { display: none }',
@@ -144,13 +263,14 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   }
 }));
 
-// Serve OpenAPI spec as JSON (optional)
+// Serve OpenAPI spec as JSON
 app.get('/api-docs.json', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpecs);
 });
 
-// Optional: Redirect root to Swagger docs in development
+// Redirect root to Swagger docs in development
 if (process.env.NODE_ENV !== 'production') {
   app.get('/', (req, res) => {
     res.redirect('/api-docs');
@@ -179,5 +299,8 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`🔗 API URL: http://localhost:${PORT}/api`);
+  console.log(`📡 Network URL: http://${LOCAL_IP}:${PORT}/api`);
+  console.log(`📚 Swagger Docs: http://localhost:${PORT}/api-docs`);
+  console.log(`📚 Network Swagger: http://${LOCAL_IP}:${PORT}/api-docs`);
   console.log('☁️  Cloud Storage API Ready!\n');
 });

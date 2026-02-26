@@ -14,7 +14,7 @@ const companySchema = new mongoose.Schema({
   },
   totalStorage: {
     type: Number,
-    default: 50 * 1024 * 1024 * 1024, // 50GB default
+    default: 5 * 1024 * 1024, // 50GB default
     min: [100 * 1024 * 1024, 'Minimum storage is 100MB'],
     required: true
   },

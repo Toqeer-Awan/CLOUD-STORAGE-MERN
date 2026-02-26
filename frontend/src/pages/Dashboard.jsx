@@ -1,17 +1,19 @@
+// In Dashboard.jsx - find the Recent Files section (around line 350-400)
+
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import Cards from '../components/Cards';
 import FileTypeCards from '../components/FileTypeCards';
 import FileTable from '../components/FileTable';
-import { setFiles } from '../redux/slices/fileSlice';
+import { setFiles, removeFile, removeMultipleFiles } from '../redux/slices/fileSlice'; // Add removeMultipleFiles
 import { fileAPI, userAPI, companyAPI } from '../redux/api/api';
 import useToast from '../hooks/useToast';
 import {
   MdStorage, MdFolder, MdPeople,
   MdCloudUpload, MdRefresh, MdImage, MdVideoLibrary,
   MdPictureAsPdf, MdDescription, MdInsertDriveFile, MdDashboard,
-  MdUpload
+  MdUpload, MdDeleteSweep
 } from "react-icons/md";
 
 const Dashboard = () => {
@@ -25,7 +27,12 @@ const Dashboard = () => {
   const [users, setUsers] = useState([]);
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState([]); // Changed to array
+  const [chartData, setChartData] = useState([]);
+  
+  // NEW: Selection state for dashboard
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  
   const [fileStats, setFileStats] = useState({
     totalFiles: 0,
     totalSize: 0,
@@ -80,22 +87,24 @@ const Dashboard = () => {
       dispatch(setFiles(formattedFiles));
 
       // Get company data if user has company
-      if (user?.role !== 'superAdmin') {
+      if (user?.company) {
         try {
           const companyRes = await companyAPI.getMyCompany();
           setCompany(companyRes.data);
         } catch (error) {
-          console.log('No company data available');
+          console.log('ℹ️ No company data available');
         }
       }
 
-      // Get users if admin
-      if (user?.role === 'superAdmin' || user?.role === 'admin') {
+      // Only try to fetch users if user is admin
+      if (user?.role === 'admin') {
         try {
-          const usersRes = await userAPI.getAllUsers();
-          setUsers(usersRes.data);
+          if (user?.company) {
+            const usersRes = await userAPI.getCompanyUsers(user.company);
+            setUsers(usersRes.data);
+          }
         } catch (error) {
-          console.log('No users data available');
+          console.log('ℹ️ No users data available');
         }
       }
 
@@ -193,7 +202,7 @@ const Dashboard = () => {
     });
   };
 
-  // 🔥 UPDATED: Returns multiple charts
+  // Updated to return multiple charts
   const generateChartData = (allFiles) => {
     // Chart 1: Storage by File Type
     let images = 0, videos = 0, pdfs = 0, documents = 0, others = 0;
@@ -216,22 +225,18 @@ const Dashboard = () => {
     });
 
     // Chart 2: Storage Overview (Total vs Used)
-    // Get user quota for total storage
     let totalStorage = 5 * 1024 * 1024 * 1024; // Default 5GB
     let usedStorage = fileStats.totalSize || 0;
     
-    // Try to get from user object if available
     if (user?.storageAllocated) {
       totalStorage = user.storageAllocated;
     }
 
-    // Convert to GB for display
     const totalGB = totalStorage / (1024 * 1024 * 1024);
     const usedGB = usedStorage / (1024 * 1024 * 1024);
     const availableGB = Math.max(0, totalGB - usedGB);
 
     return [
-      // Chart 1: Storage by File Type
       {
         id: 1,
         title: "Storage Usage by Type",
@@ -252,7 +257,6 @@ const Dashboard = () => {
           }],
         },
       },
-      // Chart 2: Storage Overview (NEW)
       {
         id: 3,
         title: "Storage Overview",
@@ -262,7 +266,7 @@ const Dashboard = () => {
           datasets: [{
             label: 'Storage (GB)',
             data: [usedGB, availableGB],
-            backgroundColor: ['#FF6384', '#36A2EB'], // Red for used, Blue for available
+            backgroundColor: ['#fc1403', '#03fc45'],
             borderWidth: 1,
           }],
         },
@@ -270,15 +274,97 @@ const Dashboard = () => {
     ];
   };
 
+  // NEW: Handle single file selection
+  const handleSelectFile = (fileId) => {
+    setSelectedFiles(prev => {
+      if (prev.includes(fileId)) {
+        return prev.filter(id => id !== fileId);
+      } else {
+        return [...prev, fileId];
+      }
+    });
+  };
+
+  // NEW: Handle select all for recent files
+  const handleSelectAll = () => {
+    const recentFileIds = getRecentFiles().map(f => f.id || f._id);
+    if (selectedFiles.length === recentFileIds.length) {
+      setSelectedFiles([]);
+    } else {
+      setSelectedFiles(recentFileIds);
+    }
+  };
+
+  // NEW: Clear selection
+  const handleClearSelection = () => {
+    setSelectedFiles([]);
+  };
+
+  // NEW: Bulk delete for dashboard
+  const handleBulkDelete = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    const confirmMessage = selectedFiles.length === 1 
+      ? 'Are you sure you want to delete this file?' 
+      : `Are you sure you want to delete ${selectedFiles.length} files?`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    setBulkLoading(true);
+    const loadingToast = toast.loading(`Deleting ${selectedFiles.length} file(s)...`);
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (const fileId of selectedFiles) {
+      try {
+        await fileAPI.deleteFile(fileId);
+        dispatch(removeFile(fileId));
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Failed to delete file ${fileId}:`, error);
+        failCount++;
+      }
+    }
+    
+    toast.dismiss(loadingToast);
+    
+    if (successCount > 0) {
+      toast.success(`Successfully deleted ${successCount} file(s)`);
+      // Refresh dashboard data
+      fetchDashboardData();
+    }
+    if (failCount > 0) {
+      toast.error(`Failed to delete ${failCount} file(s)`);
+    }
+    
+    setSelectedFiles([]);
+    setBulkLoading(false);
+  };
+
   const handleDeleteFile = async (fileId) => {
-    if (!window.confirm('Are you sure you want to delete this file?')) return;
+    const file = files.find(f => f._id === fileId || f.id === fileId);
+    if (!file) return;
+    
+    if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) return;
+    
+    const loadingToast = toast.loading(`Deleting ${file.name}...`);
     
     try {
       await fileAPI.deleteFile(fileId);
+      toast.dismiss(loadingToast);
+      dispatch(removeFile(fileId));
       toast.success('File deleted successfully');
+      
+      // Remove from selected if it was selected
+      setSelectedFiles(prev => prev.filter(id => id !== fileId));
+      
+      // Refresh dashboard data
       fetchDashboardData();
     } catch (error) {
-      toast.error('Failed to delete file');
+      toast.dismiss(loadingToast);
+      const errorMessage = error.response?.data?.error || 'Failed to delete file';
+      toast.error(errorMessage);
     }
   };
 
@@ -310,6 +396,8 @@ const Dashboard = () => {
     );
   }
 
+  const recentFiles = getRecentFiles();
+
   return (
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -338,23 +426,20 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 🔥 UPDATED: Three-column layout with both charts */}
+      {/* Three-column layout with both charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Chart 1: Storage Overview (Total vs Used) */}
         {chartData.length > 1 && (
           <div className="lg:col-span-1 h-full">
             <Cards cardsData={[chartData[1]]} />
           </div>
         )}
         
-        {/* Chart 2: Storage by File Type */}
         {chartData.length > 0 && (
           <div className="lg:col-span-1 h-full">
             <Cards cardsData={[chartData[0]]} />
           </div>
         )}
         
-        {/* File Type Cards */}
         <div className="lg:col-span-1 h-full">
           <FileTypeCards 
             stats={fileStats} 
@@ -364,12 +449,52 @@ const Dashboard = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Files</h3>
+          
+          {/* NEW: Bulk delete button for selected files */}
+          {/* {selectedFiles.length > 0 && (
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50"
+            >
+              {bulkLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <MdDeleteSweep size={18} />
+              )}
+              {bulkLoading ? 'Deleting...' : `Delete (${selectedFiles.length})`}
+            </button>
+          )} */}
         </div>
 
-        {getRecentFiles().length > 0 ? (
-          <FileTable files={getRecentFiles()} onRemoveFile={handleDeleteFile} />
+        {/* NEW: Selection info bar */}
+        {/* {selectedFiles.length > 0 && (
+          <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              {selectedFiles.length} file(s) selected
+            </span>
+            <button
+              onClick={handleClearSelection}
+              className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
+            >
+              Clear Selection
+            </button>
+          </div>
+        )} */}
+
+        {recentFiles.length > 0 ? (
+          <FileTable 
+            files={recentFiles} 
+            onRemoveFile={handleDeleteFile}
+            // 🔥 FIX: Add these missing props for checkbox functionality
+            showCheckboxes={true}
+            selectedFiles={selectedFiles}
+            onSelectFile={handleSelectFile}
+            onSelectAll={handleSelectAll}
+            onBulkDelete={handleBulkDelete}
+          />
         ) : (
           <div className="p-12 text-center">
             <MdFolder className="mx-auto text-5xl text-gray-300 dark:text-gray-600 mb-4" />
