@@ -97,7 +97,7 @@ app.use(passport.session());
 
 
 app.use(cors());
-
+app.options('*', cors());
 
 // ===== BODY PARSING MIDDLEWARE =====
 app.use(express.json());
