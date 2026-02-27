@@ -17,16 +17,21 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
-// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED START
+
+// COMMENTED OUT ROUTES START
 // import roleRoutes from './routes/roleRoutes.js';
 // import permissionsRoutes from './routes/permission.js';
 // import companyRoutes from './routes/companyRoutes.js';
-// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED END
+// COMMENTED OUT ROUTES END
+
 import storageRoutes from './routes/storageRoutes.js';
 import './config/passport.js';
 import b2 from './config/b2.js';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpecs from './config/swagger.js';
+
+// ===== QUOTA JOBS =====
+import { startAllQuotaJobs } from './utils/quotaReset.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,32 +188,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
-// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED START
+
+// COMMENTED OUT ROUTES USAGE START
 // app.use('/api/roles', roleRoutes);
 // app.use('/api/permissions', permissionsRoutes);
 // app.use('/api/companies', companyRoutes);
-// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED END
+// COMMENTED OUT ROUTES USAGE END
+
 app.use('/api/storage', storageRoutes);
-
-// ===== TEST ENDPOINTS =====
-app.get('/api/test', (req, res) => {
-  res.json({
-    status: 'OK',
-    message: 'API is working',
-    jwt: process.env.JWT_SECRET ? '✅ Configured' : '❌ Not Configured',
-    mongo: '✅ Connected',
-    env: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Cloud Storage API is running',
-    timestamp: new Date().toISOString()
-  });
-});
 
 // ===== SWAGGER DOCUMENTATION =====
 app.use('/api-docs', (req, res, next) => {
@@ -244,6 +231,29 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// ===== START QUOTA MANAGEMENT JOBS =====
+startAllQuotaJobs();
+
+// ===== TEST ENDPOINTS =====
+app.get('/api/test', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'API is working',
+    jwt: process.env.JWT_SECRET ? '✅ Configured' : '❌ Not Configured',
+    mongo: '✅ Connected',
+    env: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    message: 'Cloud Storage API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ===== 404 HANDLER =====
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
@@ -268,5 +278,6 @@ app.listen(PORT, () => {
   console.log(`📡 Network URL: http://${LOCAL_IP}:${PORT}/api`);
   console.log(`📚 Swagger Docs: http://localhost:${PORT}/api-docs`);
   console.log(`📚 Network Swagger: http://${LOCAL_IP}:${PORT}/api-docs`);
+  console.log(`📊 Quota management: ✅ Active`);
   console.log('☁️  Cloud Storage API Ready!\n');
 });

@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Company from '../models/Company.js';
 import Role from '../models/Role.js';
+import File from '../models/File.js';
 import bcrypt from 'bcryptjs';
 
 // SUPERADMIN COMMENTED START
@@ -146,7 +147,13 @@ import bcrypt from 'bcryptjs';
 //       storageAllocated,
 //       storageUsed: 0,
 //       allocatedToUsers: 0,
-//       permissions
+//       permissions,
+//       quota: {
+//         plan: 'free',
+//         maxFiles: 100,
+//         fileCount: 0,
+//         dailyUploadLimit: 1 * 1024 * 1024 * 1024
+//       }
 //     });
 // 
 //     await user.save();
@@ -170,6 +177,64 @@ import bcrypt from 'bcryptjs';
 //   }
 // };
 // SIMPLE USER CREATION COMMENTED END
+
+// SIMPLE USER ROLE UPDATE COMMENTED START
+// // @desc    Update user role
+// // @route   PUT /api/users/:id/role
+// // @access  Private/Admin
+// export const updateUserRole = async (req, res) => {
+//   try {
+//     const { role } = req.body;
+//     const user = await User.findById(req.params.id);
+//     
+//     if (!user) {
+//       return res.status(404).json({ error: 'User not found' });
+//     }
+// 
+//     let permissions = {
+//       view: true, upload: true, download: true, delete: false,
+//       addUser: false, removeUser: false, changeRole: false,
+//       manageFiles: false, manageStorage: false, assignStorage: false
+//     };
+// 
+//     if (role === 'admin') {
+//       permissions = {
+//         view: true, upload: true, download: true, delete: true,
+//         addUser: true, removeUser: true, changeRole: true,
+//         manageFiles: true, manageStorage: true, assignStorage: true
+//       };
+//     }
+// 
+//     if (role === 'admin' && user.role !== 'admin') {
+//       const company = await Company.findById(user.company);
+//       if (company) {
+//         user.storageAllocated = company.totalStorage;
+//         if (user.quota) {
+//           user.quota.maxFiles = 1000; // Admin gets more files
+//         }
+//       }
+//     }
+// 
+//     user.role = role;
+//     user.permissions = permissions;
+//     await user.save();
+// 
+//     res.json({ 
+//       message: 'User role updated',
+//       user: {
+//         _id: user._id,
+//         username: user.username,
+//         role: user.role,
+//         permissions: user.permissions,
+//         storageAllocated: user.storageAllocated
+//       }
+//     });
+//   } catch (error) {
+//     console.error('❌ Update role error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER ROLE UPDATE COMMENTED END
 
 // SIMPLE USER DELETION COMMENTED START
 // // @desc    Delete user
@@ -220,61 +285,6 @@ import bcrypt from 'bcryptjs';
 //   }
 // };
 // SIMPLE USER DELETION COMMENTED END
-
-// SIMPLE USER ROLE UPDATE COMMENTED START
-// // @desc    Update user role
-// // @route   PUT /api/users/:id/role
-// // @access  Private/Admin
-// export const updateUserRole = async (req, res) => {
-//   try {
-//     const { role } = req.body;
-//     const user = await User.findById(req.params.id);
-//     
-//     if (!user) {
-//       return res.status(404).json({ error: 'User not found' });
-//     }
-// 
-//     let permissions = {
-//       view: true, upload: true, download: true, delete: false,
-//       addUser: false, removeUser: false, changeRole: false,
-//       manageFiles: false, manageStorage: false, assignStorage: false
-//     };
-// 
-//     if (role === 'admin') {
-//       permissions = {
-//         view: true, upload: true, download: true, delete: true,
-//         addUser: true, removeUser: true, changeRole: true,
-//         manageFiles: true, manageStorage: true, assignStorage: true
-//       };
-//     }
-// 
-//     if (role === 'admin' && user.role !== 'admin') {
-//       const company = await Company.findById(user.company);
-//       if (company) {
-//         user.storageAllocated = company.totalStorage;
-//       }
-//     }
-// 
-//     user.role = role;
-//     user.permissions = permissions;
-//     await user.save();
-// 
-//     res.json({ 
-//       message: 'User role updated',
-//       user: {
-//         _id: user._id,
-//         username: user.username,
-//         role: user.role,
-//         permissions: user.permissions,
-//         storageAllocated: user.storageAllocated
-//       }
-//     });
-//   } catch (error) {
-//     console.error('❌ Update role error:', error);
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-// SIMPLE USER ROLE UPDATE COMMENTED END
 
 // SIMPLE USER PERMISSIONS COMMENTED START
 // // @desc    Get current user permissions
@@ -342,49 +352,98 @@ import bcrypt from 'bcryptjs';
 // };
 // PERMISSIONS API COMMENTED END
 
-// SIMPLE USER QUOTA COMMENTED START
-// // @desc    Get user quota
-// // @route   GET /api/users/quota
-// // @access  Private
-// export const getQuota = async (req, res) => {
-//   try {
-//     const user = await User.findById(req.user.id)
-//       .select('storageAllocated storageUsed allocatedToUsers username role createdAt');
-//     
-//     if (!user) {
-//       return res.status(404).json({ error: 'User not found' });
-//     }
-//     
-//     let available = 0;
-//     let total = user.storageAllocated || 0;
-//     let used = user.storageUsed || 0;
-//     
-//     if (user.role === 'admin') {
-//       const allocatedToUsers = user.allocatedToUsers || 0;
-//       available = Math.max(0, total - used - allocatedToUsers);
-//     } else {
-//       available = Math.max(0, total - used);
-//     }
-//     
-//     const percentage = total > 0 ? ((used / total) * 100).toFixed(1) : 0;
-//     
-//     const accountAge = Date.now() - new Date(user.createdAt).getTime();
-//     const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
-//     
-//     res.json({
-//       used: used,
-//       total: total,
-//       available: available,
-//       percentage: parseFloat(percentage),
-//       accountAge: accountAgeInHours,
-//       createdAt: user.createdAt
-//     });
-//   } catch (error) {
-//     console.error('❌ Get quota error:', error);
-//     res.status(500).json({ error: error.message });
-//   }
-// };
-// SIMPLE USER QUOTA COMMENTED END
+// @desc    Get user quota with detailed usage
+// @route   GET /api/users/quota
+// @access  Private
+export const getQuota = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .select('storageAllocated storageUsed username role createdAt quota dailyUsage fileTypeStats');
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Get today's usage
+    const todayUsage = user.dailyUsage?.find(d => {
+      const date = new Date(d.date);
+      return date.getTime() === today.getTime();
+    }) || { uploadSize: 0, uploadCount: 0, downloadSize: 0, downloadCount: 0 };
+    
+    // Get file statistics
+    const files = await File.find({ 
+      uploadedBy: user._id,
+      isDeleted: false,
+      uploadStatus: 'completed'
+    });
+    
+    const totalUsed = files.reduce((acc, file) => acc + (file.size || 0), 0);
+    const fileCount = files.length;
+    
+    // Calculate by file type
+    const byType = user.fileTypeStats || {
+      images: { count: 0, size: 0 },
+      videos: { count: 0, size: 0 },
+      pdfs: { count: 0, size: 0 },
+      documents: { count: 0, size: 0 },
+      others: { count: 0, size: 0 }
+    };
+    
+    const available = Math.max(0, (5 * 1024 * 1024 * 1024) - totalUsed);
+    const percentage = ((totalUsed / (5 * 1024 * 1024 * 1024)) * 100).toFixed(1);
+    
+    res.json({
+      // Basic quota
+      used: totalUsed,
+      total: 5 * 1024 * 1024 * 1024,
+      available: available,
+      percentage: parseFloat(percentage),
+      
+      // File statistics
+      fileCount,
+      maxFiles: 100,
+      
+      // Daily usage
+      daily: {
+        used: todayUsage.uploadSize || 0,
+        limit: 1 * 1024 * 1024 * 1024,
+        remaining: Math.max(0, (1 * 1024 * 1024 * 1024) - (todayUsage.uploadSize || 0)),
+        count: todayUsage.uploadCount || 0
+      },
+      
+      // Plan info
+      plan: 'free',
+      
+      // Status flags
+      isNearLimit: percentage >= 80,
+      isOverLimit: available <= 0,
+      
+      // Storage by type
+      byType,
+      
+      // Limits
+      limits: {
+        maxFileSize: 100 * 1024 * 1024,
+        maxFiles: 100,
+        dailyUpload: 1 * 1024 * 1024 * 1024
+      },
+      
+      // Warnings
+      warnings: {
+        storage: percentage >= 80,
+        files: fileCount >= 90,
+        daily: ((todayUsage.uploadSize || 0) / (1 * 1024 * 1024 * 1024)) >= 0.85
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get quota error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
 // SUPERADMIN COMMENTED START
 // // @desc    Update all roles permissions
@@ -520,5 +579,5 @@ export default {
   // SUPERADMIN COMMENTED: updateAllRolesPermissions,
   // SUPERADMIN COMMENTED: deleteCustomRole,
   // SUPERADMIN COMMENTED: syncAdminStorage,
-  // SIMPLE USER QUOTA COMMENTED: getQuota
+  getQuota
 };

@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { addFile } from '../redux/slices/fileSlice';
 import useToast from '../hooks/useToast';
 import uploadService from '../services/uploadService';
-// SIMPLE USER QUOTA API COMMENTED: import { userAPI } from '../redux/api/api';
+import api from '../redux/api/api'; // Changed from { userAPI }
 import { 
   MdUpload, MdCloud, MdWarning, MdStorage, 
   MdFolder, MdInsertDriveFile, MdCheckCircle,
@@ -17,44 +17,61 @@ const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  
-  // SIMPLE USER QUOTA STATE COMMENTED START
-  // const [quota, setQuota] = useState({
-  //   used: 0,
-  //   total: 0,
-  //   available: 0,
-  //   percentage: 0
-  // });
-  // const [loadingQuota, setLoadingQuota] = useState(true);
-  // const [quotaError, setQuotaError] = useState(false);
-  // SIMPLE USER QUOTA STATE COMMENTED END
-  
+  const [quota, setQuota] = useState({
+    used: 0,
+    total: 5 * 1024 * 1024 * 1024,
+    available: 5 * 1024 * 1024 * 1024,
+    percentage: 0,
+    fileCount: 0,
+    maxFiles: 100,
+    daily: {
+      used: 0,
+      limit: 1 * 1024 * 1024 * 1024,
+      remaining: 1 * 1024 * 1024 * 1024,
+      count: 0
+    },
+    warnings: {
+      storage: false,
+      files: false,
+      daily: false
+    },
+    isNearLimit: false,
+    isOverLimit: false
+  });
+  const [loadingQuota, setLoadingQuota] = useState(true);
+  const [quotaError, setQuotaError] = useState(false);
   const { user } = useSelector((state) => state.auth);
   const toast = useToast();
 
-  // SIMPLE USER QUOTA FETCH COMMENTED START
-  // const fetchQuota = useCallback(async () => {
-  //   try {
-  //     setLoadingQuota(true);
-  //     setQuotaError(false);
-  //     const response = await userAPI.getQuota();
-  //     setQuota(response.data);
-  //   } catch (error) {
-  //     console.error('❌ Failed to fetch quota:', error);
-  //     setQuotaError(true);
-  //   } finally {
-  //     setLoadingQuota(false);
-  //   }
-  // }, []);
-  // SIMPLE USER QUOTA FETCH COMMENTED END
+  const fetchQuota = useCallback(async () => {
+    try {
+      setLoadingQuota(true);
+      setQuotaError(false);
+      const response = await api.get('/users/quota'); // Changed from userAPI.getQuota()
+      setQuota(response.data);
+    } catch (error) {
+      console.error('❌ Failed to fetch quota:', error);
+      setQuotaError(true);
+    } finally {
+      setLoadingQuota(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (user) {
-      // SIMPLE USER QUOTA CALL COMMENTED: fetchQuota();
+      fetchQuota();
     }
-  }, [user]);
+  }, [user, fetchQuota]);
 
-  // 🔥 NEW: Function to get appropriate icon based on file type
+  // Format bytes helper
+  const formatBytes = (bytes) => {
+    if (bytes === 0 || !bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const getFileIcon = (file) => {
     const type = file.type || '';
     const name = file.name || '';
@@ -196,6 +213,35 @@ const Upload = () => {
   const handleFileSelect = (selectedFiles) => {
     const fileArray = Array.from(selectedFiles);
     
+    // Check each file against quota
+    for (const file of fileArray) {
+      // Check file size
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error(`File ${file.name} exceeds 100MB limit`);
+        return;
+      }
+      
+      // Check total size against available quota
+      const totalSize = fileArray.reduce((sum, f) => sum + f.size, 0);
+      if (totalSize > quota.available) {
+        toast.error(`Not enough space. Available: ${formatBytes(quota.available)}`);
+        return;
+      }
+      
+      // Check file count
+      if (quota.fileCount + fileArray.length > quota.maxFiles) {
+        toast.error(`Cannot add ${fileArray.length} files. Only ${quota.maxFiles - quota.fileCount} slots remaining`);
+        return;
+      }
+      
+      // Check daily limit
+      if (quota.daily.used + totalSize > quota.daily.limit) {
+        const remaining = quota.daily.limit - quota.daily.used;
+        toast.error(`Daily upload limit exceeded. ${formatBytes(remaining)} remaining today`);
+        return;
+      }
+    }
+    
     const newFiles = fileArray.map(file => ({
       id: Date.now() + Math.random() + file.name,
       file,
@@ -208,14 +254,6 @@ const Upload = () => {
       progress: 0,
       error: null
     }));
-
-    // SIMPLE USER QUOTA CHECK COMMENTED START
-    // const totalSize = newFiles.reduce((sum, f) => sum + f.size, 0);
-    // if (totalSize > quota.available) {
-    //   toast.error(`Not enough space. Available: ${formatBytes(quota.available)}`);
-    //   return;
-    // }
-    // SIMPLE USER QUOTA CHECK COMMENTED END
 
     setLocalFiles(prev => [...prev, ...newFiles]);
     toast.success(`${newFiles.length} file(s) selected`);
@@ -285,7 +323,7 @@ const Upload = () => {
 
     if (successful > 0) {
       toast.success(`${successful} file(s) uploaded successfully`);
-      // SIMPLE USER QUOTA REFRESH COMMENTED: await fetchQuota();
+      await fetchQuota();
     }
     if (failed > 0) {
       toast.error(`${failed} file(s) failed to upload`);
@@ -304,21 +342,12 @@ const Upload = () => {
     toast.info('All files cleared');
   };
 
-  const formatBytes = (bytes) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(1024));
-    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
+  const getQuotaColor = () => {
+    const percentage = quota.percentage || 0;
+    if (percentage >= 95) return 'bg-red-500';
+    if (percentage >= 80) return 'bg-yellow-500';
+    return 'bg-green-500';
   };
-
-  // SIMPLE USER QUOTA COLOR COMMENTED START
-  // const getQuotaColor = () => {
-  //   const percentage = quota.percentage || 0;
-  //   if (percentage >= 90) return 'bg-red-500';
-  //   if (percentage >= 70) return 'bg-yellow-500';
-  //   return 'bg-green-500';
-  // };
-  // SIMPLE USER QUOTA COLOR COMMENTED END
 
   const canUploadAny = user?.role === 'admin' || user?.permissions?.upload === true;
 
@@ -334,7 +363,7 @@ const Upload = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Quota Info - SIMPLE USER QUOTA SECTION COMMENTED */}
+      {/* Header with Quota Info */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -346,13 +375,13 @@ const Upload = () => {
             </p>
           </div>
           
-          {/* SIMPLE USER QUOTA CARD COMMENTED START */}
-          {/* <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-[250px]">
+          {/* Quota Card */}
+          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-[300px]">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <MdStorage className="text-blue-500 dark:text-blue-400 text-xl" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Available Storage
+                  Storage
                 </span>
               </div>
               {loadingQuota ? (
@@ -361,7 +390,8 @@ const Upload = () => {
                 <span className="text-sm text-red-500">Error loading</span>
               ) : (
                 <span className={`text-lg font-bold ${
-                  quota.available <= 0 ? 'text-red-500' : 'text-green-500'
+                  quota.available <= 0 ? 'text-red-500' : 
+                  quota.isNearLimit ? 'text-yellow-500' : 'text-green-500'
                 }`}>
                   {formatBytes(quota.available)}
                 </span>
@@ -381,11 +411,74 @@ const Upload = () => {
                   <span>Used: {formatBytes(quota.used)}</span>
                   <span>Total: {formatBytes(quota.total)}</span>
                 </div>
+
+                {/* File count */}
+                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  <span>Files: {quota.fileCount}/{quota.maxFiles}</span>
+                  <span>{quota.maxFiles - quota.fileCount} remaining</span>
+                </div>
               </>
             )}
-          </div> */}
-          {/* SIMPLE USER QUOTA CARD COMMENTED END */}
+          </div>
         </div>
+
+        {/* Quota Warning Messages */}
+        {!loadingQuota && !quotaError && (
+          <>
+            {quota.warnings?.storage && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  ⚠️ Storage almost full: {quota.percentage.toFixed(1)}% used ({formatBytes(quota.available)} remaining)
+                </p>
+              </div>
+            )}
+            
+            {quota.warnings?.files && (
+              <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  ⚠️ Only {quota.maxFiles - quota.fileCount} file slots remaining
+                </p>
+              </div>
+            )}
+            
+            {quota.warnings?.daily && (
+              <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                  ⚠️ Daily upload limit: {formatBytes(quota.daily.remaining)} remaining today
+                </p>
+              </div>
+            )}
+            
+            {quota.isOverLimit && (
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  ❌ Storage full. Delete files to continue uploading.
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Daily Usage Progress */}
+        {!loadingQuota && !quotaError && (
+          <div className="mt-4">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-xs text-gray-600 dark:text-gray-400">Daily Upload</span>
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {formatBytes(quota.daily.used)} / {formatBytes(quota.daily.limit)}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div 
+                className={`h-1.5 rounded-full transition-all ${
+                  (quota.daily.used / quota.daily.limit) > 0.9 ? 'bg-red-500' : 
+                  (quota.daily.used / quota.daily.limit) > 0.7 ? 'bg-yellow-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${Math.min((quota.daily.used / quota.daily.limit) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Upload Zone */}
@@ -413,20 +506,22 @@ const Upload = () => {
           multiple 
           onChange={handleFileInput} 
           className="hidden" 
-          // SIMPLE USER QUOTA DISABLE COMMENTED: disabled={isUploading || quota.available <= 0}
+          disabled={isUploading || quota.available <= 0 || quota.fileCount >= quota.maxFiles}
         />
         
         <label
           htmlFor="file-upload"
           className={`inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg cursor-pointer transition-colors ${
-            isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-700'
+            isUploading || quota.available <= 0 || quota.fileCount >= quota.maxFiles
+              ? 'opacity-50 cursor-not-allowed' 
+              : 'hover:bg-orange-700'
           }`}
         >
           <MdUpload className="mr-2" /> Browse Files
         </label>
         
         <p className="text-sm text-gray-500 dark:text-gray-500 mt-4">
-          Max file size: 5GB • Folders maintain their structure when dragged
+          Max file size: 100MB • Max files: {quota.maxFiles} • Daily limit: 1GB
         </p>
       </div>
 

@@ -7,7 +7,7 @@ import {
   // SIMPLE USER DELETION COMMENTED: deleteUser,
   // SIMPLE USER PERMISSIONS COMMENTED: getUserPermissions,
   // PERMISSIONS API COMMENTED: getAllRolesPermissions,
-  // SIMPLE USER QUOTA COMMENTED: getQuota,
+  getQuota,
 } from '../controllers/userController.js';
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const router = express.Router();
 router.use(protect);
 
 // SIMPLE USER QUOTA ROUTE COMMENTED START
-// router.get('/quota', getQuota);
+router.get('/quota', getQuota);
 // SIMPLE USER QUOTA ROUTE COMMENTED END
 
 // SIMPLE USER PERMISSIONS ROUTE COMMENTED START

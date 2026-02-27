@@ -50,7 +50,8 @@ const fileSchema = new mongoose.Schema({
   company: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Company',
-    required: true
+    required: false,  // Changed from true to false
+    default: null
   },
   isDeleted: {
     type: Boolean,
@@ -59,8 +60,7 @@ const fileSchema = new mongoose.Schema({
   deletedAt: Date
 }, { timestamps: true });
 
-// Indexes for performance - REMOVE the duplicate storageKey index
-// Keep only these indexes:
+// Indexes for performance
 fileSchema.index({ company: 1, uploadStatus: 1 });
 fileSchema.index({ uploadedBy: 1, createdAt: -1 });
 fileSchema.index({ uploadId: 1 });
