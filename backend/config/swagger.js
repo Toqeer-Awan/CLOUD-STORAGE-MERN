@@ -24,7 +24,7 @@ Authorization: Bearer <your-jwt-token>
     },
     servers: [
       {
-        url: 'http://localhost:5000/api',
+        url: 'http://app.cloudverse.space/api',
         description: 'Development server'
       }
     ],
