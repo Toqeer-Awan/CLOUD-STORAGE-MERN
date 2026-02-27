@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useLocation, useNavigate } from 'react-router-dom';
 import FileTable from '../components/FileTable';
 import { setFiles, removeFile, removeMultipleFiles } from '../redux/slices/fileSlice';
-import { fileAPI } from '../redux/api/api';
+import { fileAPI } from '../redux/api/api'; // ✅ REMOVED userAPI
 import useToast from '../hooks/useToast';
 import { 
   MdSearch, MdFilterList, MdSort, MdRefresh, 
@@ -22,10 +22,8 @@ const AllFiles = () => {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   
-  // NEW: Combined sort option
-  const [sortOption, setSortOption] = useState('date-desc'); // Format: field-direction
+  const [sortOption, setSortOption] = useState('date-desc');
   
-  // Selection state
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
   
@@ -34,7 +32,6 @@ const AllFiles = () => {
   
   const toast = useToast();
 
-  // Parse URL query parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const typeParam = params.get('type');
@@ -47,7 +44,6 @@ const AllFiles = () => {
     fetchFiles();
   }, []);
 
-  // Reset selection when files change
   useEffect(() => {
     setSelectedFiles([]);
     setSelectAll(false);
@@ -59,12 +55,10 @@ const AllFiles = () => {
       const response = await fileAPI.getAllFiles();
       console.log('📁 Fetched files:', response.data);
       
-      // Format the files for display
       const formattedFiles = response.data.map(file => ({
         id: file._id,
         _id: file._id,
         name: file.originalName || file.filename || 'Unnamed file',
-        // Extract just the filename without path for display
         displayName: (file.originalName || file.filename || '').split('/').pop(),
         path: file.originalName || file.filename || '',
         size: file.size || 0,
@@ -84,7 +78,6 @@ const AllFiles = () => {
     }
   };
 
-  // Handle single file selection
   const handleSelectFile = (fileId) => {
     setSelectedFiles(prev => {
       if (prev.includes(fileId)) {
@@ -95,7 +88,6 @@ const AllFiles = () => {
     });
   };
 
-  // Handle select all
   const handleSelectAll = () => {
     if (selectedFiles.length === filteredFiles.length) {
       setSelectedFiles([]);
@@ -104,12 +96,10 @@ const AllFiles = () => {
     }
   };
 
-  // Clear selection
   const handleClearSelection = () => {
     setSelectedFiles([]);
   };
 
-  // Bulk delete
   const handleBulkDelete = async () => {
     if (selectedFiles.length === 0) return;
     
@@ -153,9 +143,7 @@ const AllFiles = () => {
     const file = files.find(f => f._id === fileId || f.id === fileId);
     if (!file) return;
     
-    if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
-      return;
-    }
+    if (!window.confirm(`Are you sure you want to delete "${file.name}"?`)) return;
     
     const loadingToast = toast.loading(`Deleting ${file.name}...`);
     
@@ -165,7 +153,6 @@ const AllFiles = () => {
       dispatch(removeFile(fileId));
       toast.success('File deleted successfully');
       
-      // Remove from selected if it was selected
       setSelectedFiles(prev => prev.filter(id => id !== fileId));
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -183,7 +170,6 @@ const AllFiles = () => {
     return 'other';
   };
 
-  // NEW: Parse sort option and apply sorting
   const getSortedFiles = () => {
     const [field, direction] = sortOption.split('-');
     
@@ -198,7 +184,7 @@ const AllFiles = () => {
       else if (field === 'size') {
         comparison = (a.size || 0) - (b.size || 0);
       }
-      else { // date
+      else {
         comparison = new Date(a.uploadedAt || 0) - new Date(b.uploadedAt || 0);
       }
       
@@ -206,24 +192,18 @@ const AllFiles = () => {
     });
   };
 
-  // Filter files
   const filteredFiles = files.filter(file => {
     const category = getFileCategory(file.type);
     const fileName = file.displayName || file.name || '';
     
-    // Search filter
     const matchesSearch = fileName.toLowerCase().includes(search.toLowerCase());
-    
-    // Type filter
     const matchesType = filterType === 'all' || category === filterType;
     
     return matchesSearch && matchesType;
   });
 
-  // Get sorted files
   const sortedFiles = getSortedFiles();
 
-  // Calculate stats for filtered files
   const totalSize = filteredFiles.reduce((acc, file) => acc + (file.size || 0), 0);
   const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(2);
   
@@ -251,7 +231,6 @@ const AllFiles = () => {
     { id: 'other', label: 'Others', icon: MdInsertDriveFile, color: 'gray' },
   ];
 
-  // NEW: Sort options with icons
   const sortOptions = [
     { value: 'date-desc', label: 'Upload Date (Newest First)', icon: MdArrowDownward },
     { value: 'date-asc', label: 'Upload Date (Oldest First)', icon: MdArrowUpward },
@@ -261,13 +240,11 @@ const AllFiles = () => {
     { value: 'size-asc', label: 'File Size (Smallest First)', icon: MdArrowUpward },
   ];
 
-  // Get current sort option display
   const currentSortOption = sortOptions.find(option => option.value === sortOption) || sortOptions[0];
   const CurrentSortIcon = currentSortOption.icon;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="flex justify-between items-center">
           <div>
@@ -316,7 +293,6 @@ const AllFiles = () => {
           </div>
         </div>
 
-        {/* Filter Buttons */}
         <div className="mt-4 flex flex-wrap gap-2">
           {filterButtons.map(button => {
             const Icon = button.icon;
@@ -353,7 +329,6 @@ const AllFiles = () => {
           })}
         </div>
 
-        {/* Selection Info Bar */}
         {selectedFiles.length > 0 && (
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -384,7 +359,6 @@ const AllFiles = () => {
         )}
       </div>
 
-      {/* Search and Sort - UPDATED with combined dropdown */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -425,7 +399,6 @@ const AllFiles = () => {
               </select>
             </div>
             
-            {/* Current sort indicator */}
             <div className="mt-2 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <CurrentSortIcon size={14} />
               <span>Currently: {currentSortOption.label}</span>
@@ -434,7 +407,6 @@ const AllFiles = () => {
         </div>
       </div>
 
-      {/* Files Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="p-12 text-center">

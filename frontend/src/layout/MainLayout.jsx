@@ -9,7 +9,7 @@ import {
   MdBusiness, MdLogout, MdMenu,
   MdClose, MdPersonAdd, MdList, MdSecurity,
   MdStorage, MdDarkMode, MdLightMode,
-  MdAdminPanelSettings  // Keep this, remove MdPieChart
+  MdAdminPanelSettings
 } from 'react-icons/md';
 
 const MainLayout = () => {
@@ -31,14 +31,15 @@ const MainLayout = () => {
     return location.pathname === path;
   };
 
-  // Menu items with role-based visibility - REMOVED my-storage
   const menuItems = [
-    { path: '/', icon: MdDashboard, label: 'Dashboard', roles: ['admin', 'user'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
+    { path: '/', icon: MdDashboard, label: 'Dashboard', roles: ['admin', 'user'] },
     { path: '/upload', icon: MdUpload, label: 'Upload Files', roles: ['admin', 'user'] },
-    { path: '/files', icon: MdFolder, label: 'All Files', roles: ['admin', 'user'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
-    { path: '/company', icon: MdBusiness, label: 'My Company', roles: ['admin'] },
+    { path: '/files', icon: MdFolder, label: 'All Files', roles: ['admin', 'user'] },
+    // COMPANY MENU ITEM COMMENTED START
+    // { path: '/company', icon: MdBusiness, label: 'My Company', roles: ['admin'] },
+    // COMPANY MENU ITEM COMMENTED END
     // SIMPLE USER CREATION MENU ITEM COMMENTED START
-    // { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin'] }, // SUPERADMIN COMMENTED: removed 'superAdmin'
+    // { path: '/users/add', icon: MdPersonAdd, label: 'Add User', roles: ['admin'] },
     // SIMPLE USER CREATION MENU ITEM COMMENTED END
     // SUPERADMIN COMMENTED START
     // { path: '/users/list', icon: MdList, label: 'User List', roles: ['superAdmin'] },
@@ -47,23 +48,15 @@ const MainLayout = () => {
     // SUPERADMIN COMMENTED END
   ];
 
-  // Filter menu items based on user role
   const filteredMenu = menuItems.filter(item => 
     item.roles.includes(user?.role)
   );
 
-  // Get user display name
   const getUserDisplay = () => {
     if (!user) return { initial: '?', name: 'Guest', role: '' };
     return {
       initial: user.username?.charAt(0).toUpperCase() || '?',
       name: user.username || 'User',
-      // SUPERADMIN COMMENTED START
-      // role: user.role === 'superAdmin' ? 'Super Admin' : 
-      //        user.role === 'admin' ? 'Admin' : 'User'
-      // SUPERADMIN COMMENTED END
-      
-      // NEW: Only admin and user
       role: user.role === 'admin' ? 'Admin' : 'User'
     };
   };
@@ -72,10 +65,8 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
-      {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 fixed h-full z-30`}>
         <div className="h-full flex flex-col">
-          {/* Logo */}
           <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
             {sidebarOpen ? (
               <span className="text-xl font-bold text-orange-600 dark:text-orange-500">
@@ -92,7 +83,6 @@ const MainLayout = () => {
             </button>
           </div>
 
-          {/* User Info */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
@@ -105,8 +95,7 @@ const MainLayout = () => {
                   <p className="text-sm font-medium text-gray-800 dark:text-white truncate max-w-[140px]">
                     {userDisplay.name}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize flex items-center gap-1">
-                    {/* SUPERADMIN COMMENTED: {user?.role === 'superAdmin' && <MdAdminPanelSettings className="text-xs" />} */}
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
                     {userDisplay.role}
                   </p>
                 </div>
@@ -114,7 +103,6 @@ const MainLayout = () => {
             </div>
           </div>
 
-          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto py-4">
             {filteredMenu.map((item) => {
               const Icon = item.icon;
@@ -135,9 +123,7 @@ const MainLayout = () => {
             })}
           </nav>
 
-          {/* Footer Actions */}
           <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
               className={`flex items-center w-full px-4 py-2 mb-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors ${
@@ -152,7 +138,6 @@ const MainLayout = () => {
               {sidebarOpen && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
             </button>
             
-            {/* Logout Button */}
             <button
               onClick={handleLogout}
               className={`flex items-center w-full px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ${
@@ -166,7 +151,6 @@ const MainLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className={`flex-1 ${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
         <div className="p-6">
           <Outlet />

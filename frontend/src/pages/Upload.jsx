@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { addFile } from '../redux/slices/fileSlice';
 import useToast from '../hooks/useToast';
 import uploadService from '../services/uploadService';
-import { userAPI } from '../redux/api/api';
+// SIMPLE USER QUOTA API COMMENTED: import { userAPI } from '../redux/api/api';
 import { 
   MdUpload, MdCloud, MdWarning, MdStorage, 
   MdFolder, MdInsertDriveFile, MdCheckCircle,
@@ -17,36 +17,42 @@ const Upload = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [quota, setQuota] = useState({
-    used: 0,
-    total: 0,
-    available: 0,
-    percentage: 0
-  });
-  const [loadingQuota, setLoadingQuota] = useState(true);
-  const [quotaError, setQuotaError] = useState(false);
+  
+  // SIMPLE USER QUOTA STATE COMMENTED START
+  // const [quota, setQuota] = useState({
+  //   used: 0,
+  //   total: 0,
+  //   available: 0,
+  //   percentage: 0
+  // });
+  // const [loadingQuota, setLoadingQuota] = useState(true);
+  // const [quotaError, setQuotaError] = useState(false);
+  // SIMPLE USER QUOTA STATE COMMENTED END
+  
   const { user } = useSelector((state) => state.auth);
   const toast = useToast();
 
-  const fetchQuota = useCallback(async () => {
-    try {
-      setLoadingQuota(true);
-      setQuotaError(false);
-      const response = await userAPI.getQuota();
-      setQuota(response.data);
-    } catch (error) {
-      console.error('❌ Failed to fetch quota:', error);
-      setQuotaError(true);
-    } finally {
-      setLoadingQuota(false);
-    }
-  }, []);
+  // SIMPLE USER QUOTA FETCH COMMENTED START
+  // const fetchQuota = useCallback(async () => {
+  //   try {
+  //     setLoadingQuota(true);
+  //     setQuotaError(false);
+  //     const response = await userAPI.getQuota();
+  //     setQuota(response.data);
+  //   } catch (error) {
+  //     console.error('❌ Failed to fetch quota:', error);
+  //     setQuotaError(true);
+  //   } finally {
+  //     setLoadingQuota(false);
+  //   }
+  // }, []);
+  // SIMPLE USER QUOTA FETCH COMMENTED END
 
   useEffect(() => {
     if (user) {
-      fetchQuota();
+      // SIMPLE USER QUOTA CALL COMMENTED: fetchQuota();
     }
-  }, [user, fetchQuota]);
+  }, [user]);
 
   // 🔥 NEW: Function to get appropriate icon based on file type
   const getFileIcon = (file) => {
@@ -54,61 +60,49 @@ const Upload = () => {
     const name = file.name || '';
     const ext = name.split('.').pop()?.toLowerCase() || '';
     
-    // Images
     if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
       return <MdImage className="text-blue-500 dark:text-blue-400 text-2xl" />;
     }
     
-    // Videos
     if (type.startsWith('video/') || ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm'].includes(ext)) {
       return <MdVideoLibrary className="text-purple-500 dark:text-purple-400 text-2xl" />;
     }
     
-    // Audio
     if (type.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) {
       return <MdAudioFile className="text-pink-500 dark:text-pink-400 text-2xl" />;
     }
     
-    // PDF
     if (type === 'application/pdf' || ext === 'pdf') {
       return <MdPictureAsPdf className="text-red-500 dark:text-red-400 text-2xl" />;
     }
     
-    // Word documents
     if (type.includes('word') || ['doc', 'docx'].includes(ext)) {
       return <FaFileWord className="text-blue-600 dark:text-blue-400 text-2xl" />;
     }
     
-    // Excel
     if (type.includes('excel') || type.includes('spreadsheet') || ['xls', 'xlsx', 'csv'].includes(ext)) {
       return <FaFileExcel className="text-green-600 dark:text-green-400 text-2xl" />;
     }
     
-    // PowerPoint
     if (type.includes('powerpoint') || type.includes('presentation') || ['ppt', 'pptx'].includes(ext)) {
       return <FaFilePowerpoint className="text-orange-600 dark:text-orange-400 text-2xl" />;
     }
     
-    // Archives
     if (type.includes('zip') || type.includes('compressed') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
       return <FaFileArchive className="text-yellow-600 dark:text-yellow-400 text-2xl" />;
     }
     
-    // Text files
     if (type.includes('text') || ext === 'txt') {
       return <MdDescription className="text-gray-500 dark:text-gray-400 text-2xl" />;
     }
     
-    // Folders
     if (file.path && file.path.includes('/')) {
       return <MdFolder className="text-yellow-500 dark:text-yellow-400 text-2xl" />;
     }
     
-    // Default
     return <MdInsertDriveFile className="text-gray-500 dark:text-gray-400 text-2xl" />;
   };
 
-  // 🔥 NEW: Get file type display name
   const getFileTypeDisplay = (file) => {
     const type = file.type || '';
     const name = file.name || '';
@@ -127,15 +121,12 @@ const Upload = () => {
     return 'File';
   };
 
-  // Handle folder drop
   const handleFolderDrop = async (items) => {
     const files = [];
     
-    // Function to traverse directory recursively
     const traverseDirectory = async (entry, path = '') => {
       if (entry.isFile) {
         const file = await new Promise((resolve) => entry.file(resolve));
-        // Add the relative path to preserve folder structure
         file._relativePath = path ? `${path}/${file.name}` : file.name;
         files.push(file);
       } else if (entry.isDirectory) {
@@ -185,7 +176,6 @@ const Upload = () => {
     const items = e.dataTransfer.items;
     
     if (items) {
-      // Check if it's a folder being dropped
       let hasFolder = false;
       for (let i = 0; i < items.length; i++) {
         const entry = items[i].webkitGetAsEntry();
@@ -198,7 +188,6 @@ const Upload = () => {
       if (hasFolder) {
         await handleFolderDrop(items);
       } else {
-        // Regular files
         handleFileSelect(e.dataTransfer.files);
       }
     }
@@ -211,7 +200,7 @@ const Upload = () => {
       id: Date.now() + Math.random() + file.name,
       file,
       name: file.name,
-      path: file._relativePath || file.name, // Use relative path if available (from folder)
+      path: file._relativePath || file.name,
       size: file.size,
       formattedSize: formatBytes(file.size),
       type: file.type,
@@ -220,12 +209,13 @@ const Upload = () => {
       error: null
     }));
 
-    // Check total size against available quota
-    const totalSize = newFiles.reduce((sum, f) => sum + f.size, 0);
-    if (totalSize > quota.available) {
-      toast.error(`Not enough space. Available: ${formatBytes(quota.available)}`);
-      return;
-    }
+    // SIMPLE USER QUOTA CHECK COMMENTED START
+    // const totalSize = newFiles.reduce((sum, f) => sum + f.size, 0);
+    // if (totalSize > quota.available) {
+    //   toast.error(`Not enough space. Available: ${formatBytes(quota.available)}`);
+    //   return;
+    // }
+    // SIMPLE USER QUOTA CHECK COMMENTED END
 
     setLocalFiles(prev => [...prev, ...newFiles]);
     toast.success(`${newFiles.length} file(s) selected`);
@@ -246,7 +236,6 @@ const Upload = () => {
         f.id === fileData.id ? { ...f, status: 'uploading' } : f
       ));
 
-      // Extract folder path from the file's relative path
       const pathParts = fileData.path.split('/');
       const folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : '';
       
@@ -296,13 +285,12 @@ const Upload = () => {
 
     if (successful > 0) {
       toast.success(`${successful} file(s) uploaded successfully`);
-      await fetchQuota();
+      // SIMPLE USER QUOTA REFRESH COMMENTED: await fetchQuota();
     }
     if (failed > 0) {
       toast.error(`${failed} file(s) failed to upload`);
     }
 
-    // Remove successful files from list
     setLocalFiles(prev => prev.filter(file => 
       !results.some(r => r?.success && r.file?.name === file.name)
     ));
@@ -323,12 +311,14 @@ const Upload = () => {
     return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
   };
 
-  const getQuotaColor = () => {
-    const percentage = quota.percentage || 0;
-    if (percentage >= 90) return 'bg-red-500';
-    if (percentage >= 70) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
+  // SIMPLE USER QUOTA COLOR COMMENTED START
+  // const getQuotaColor = () => {
+  //   const percentage = quota.percentage || 0;
+  //   if (percentage >= 90) return 'bg-red-500';
+  //   if (percentage >= 70) return 'bg-yellow-500';
+  //   return 'bg-green-500';
+  // };
+  // SIMPLE USER QUOTA COLOR COMMENTED END
 
   const canUploadAny = user?.role === 'admin' || user?.permissions?.upload === true;
 
@@ -344,7 +334,7 @@ const Upload = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Quota Info */}
+      {/* Header with Quota Info - SIMPLE USER QUOTA SECTION COMMENTED */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -356,8 +346,8 @@ const Upload = () => {
             </p>
           </div>
           
-          {/* Quota Card */}
-          <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-[250px]">
+          {/* SIMPLE USER QUOTA CARD COMMENTED START */}
+          {/* <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 min-w-[250px]">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <MdStorage className="text-blue-500 dark:text-blue-400 text-xl" />
@@ -393,7 +383,8 @@ const Upload = () => {
                 </div>
               </>
             )}
-          </div>
+          </div> */}
+          {/* SIMPLE USER QUOTA CARD COMMENTED END */}
         </div>
       </div>
 
@@ -422,15 +413,13 @@ const Upload = () => {
           multiple 
           onChange={handleFileInput} 
           className="hidden" 
-          disabled={isUploading || quota.available <= 0}
+          // SIMPLE USER QUOTA DISABLE COMMENTED: disabled={isUploading || quota.available <= 0}
         />
         
         <label
           htmlFor="file-upload"
           className={`inline-flex items-center px-6 py-3 bg-orange-600 text-white font-medium rounded-lg cursor-pointer transition-colors ${
-            isUploading || quota.available <= 0
-              ? 'opacity-50 cursor-not-allowed' 
-              : 'hover:bg-orange-700'
+            isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-orange-700'
           }`}
         >
           <MdUpload className="mr-2" /> Browse Files
@@ -462,7 +451,7 @@ const Upload = () => {
         </div>
       )}
 
-      {/* Files List - WITH ICONS FIXED */}
+      {/* Files List */}
       {files.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -509,7 +498,6 @@ const Upload = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
-                      {/* 🔥 FIXED: Icon display with proper styling */}
                       <div className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-lg">
                         {getFileIcon(file)}
                       </div>
@@ -528,7 +516,6 @@ const Upload = () => {
                       </div>
                     </div>
                     
-                    {/* Progress bar */}
                     {file.status === 'uploading' && (
                       <div className="mt-2 ml-13">
                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
@@ -541,7 +528,6 @@ const Upload = () => {
                       </div>
                     )}
                     
-                    {/* Error message */}
                     {file.status === 'failed' && (
                       <p className="mt-2 ml-13 text-sm text-red-600 dark:text-red-400">
                         Failed: {file.error || 'Upload failed'}
@@ -549,7 +535,6 @@ const Upload = () => {
                     )}
                   </div>
                   
-                  {/* Status icon / Actions */}
                   <div className="ml-4 flex items-center gap-2">
                     {file.status === 'completed' && (
                       <MdCheckCircle className="text-2xl text-green-500" />

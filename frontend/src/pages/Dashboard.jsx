@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import Cards from '../components/Cards';
 import FileTypeCards from '../components/FileTypeCards';
 import FileTable from '../components/FileTable';
-import { setFiles, removeFile, removeMultipleFiles } from '../redux/slices/fileSlice'; // Add removeMultipleFiles
-import { fileAPI, userAPI, companyAPI } from '../redux/api/api';
+import { setFiles, removeFile, removeMultipleFiles } from '../redux/slices/fileSlice';
+import { fileAPI } from '../redux/api/api'; // ✅ REMOVED userAPI
 import useToast from '../hooks/useToast';
 import {
   MdStorage, MdFolder, MdPeople,
@@ -24,7 +24,9 @@ const Dashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const { files } = useSelector((state) => state.files);
 
-  const [users, setUsers] = useState([]);
+  // SIMPLE USER STATE COMMENTED START
+  // const [users, setUsers] = useState([]);
+  // SIMPLE USER STATE COMMENTED END
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState([]);
@@ -86,27 +88,29 @@ const Dashboard = () => {
       
       dispatch(setFiles(formattedFiles));
 
-      // Get company data if user has company
-      if (user?.company) {
-        try {
-          const companyRes = await companyAPI.getMyCompany();
-          setCompany(companyRes.data);
-        } catch (error) {
-          console.log('ℹ️ No company data available');
-        }
-      }
+      // COMPANY API CALL COMMENTED START
+      // if (user?.company) {
+      //   try {
+      //     const companyRes = await companyAPI.getMyCompany();
+      //     setCompany(companyRes.data);
+      //   } catch (error) {
+      //     console.log('ℹ️ No company data available');
+      //   }
+      // }
+      // COMPANY API CALL COMMENTED END
 
-      // Only try to fetch users if user is admin
-      if (user?.role === 'admin') {
-        try {
-          if (user?.company) {
-            const usersRes = await userAPI.getCompanyUsers(user.company);
-            setUsers(usersRes.data);
-          }
-        } catch (error) {
-          console.log('ℹ️ No users data available');
-        }
-      }
+      // SIMPLE USER API CALL COMMENTED START
+      // if (user?.role === 'admin') {
+      //   try {
+      //     if (user?.company) {
+      //       const usersRes = await userAPI.getCompanyUsers(user.company);
+      //       setUsers(usersRes.data);
+      //     }
+      //   } catch (error) {
+      //     console.log('ℹ️ No users data available');
+      //   }
+      // }
+      // SIMPLE USER API CALL COMMENTED END
 
       calculateStats(formattedFiles);
       
@@ -453,7 +457,7 @@ const Dashboard = () => {
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Files</h3>
           
           {/* NEW: Bulk delete button for selected files */}
-          {/* {selectedFiles.length > 0 && (
+          {selectedFiles.length > 0 && (
             <button
               onClick={handleBulkDelete}
               disabled={bulkLoading}
@@ -466,11 +470,11 @@ const Dashboard = () => {
               )}
               {bulkLoading ? 'Deleting...' : `Delete (${selectedFiles.length})`}
             </button>
-          )} */}
+          )}
         </div>
 
         {/* NEW: Selection info bar */}
-        {/* {selectedFiles.length > 0 && (
+        {selectedFiles.length > 0 && (
           <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <span className="text-sm text-blue-700 dark:text-blue-300">
               {selectedFiles.length} file(s) selected
@@ -482,13 +486,12 @@ const Dashboard = () => {
               Clear Selection
             </button>
           </div>
-        )} */}
+        )}
 
         {recentFiles.length > 0 ? (
           <FileTable 
             files={recentFiles} 
             onRemoveFile={handleDeleteFile}
-            // 🔥 FIX: Add these missing props for checkbox functionality
             showCheckboxes={true}
             selectedFiles={selectedFiles}
             onSelectFile={handleSelectFile}

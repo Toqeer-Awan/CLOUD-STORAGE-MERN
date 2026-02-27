@@ -21,32 +21,29 @@ import bcrypt from 'bcryptjs';
 // };
 // SUPERADMIN COMMENTED END
 
-// @desc    Get users by company
-// @route   GET /api/users/company/:companyId
-// @access  Private/Admin
-export const getCompanyUsers = async (req, res) => {
-  try {
-    const { companyId } = req.params;
-    
-    // SUPERADMIN COMMENTED START
-    // if (req.user.role !== 'admin' && req.user.role !== 'superAdmin' && req.user.company?.toString() !== companyId) {
-    // SUPERADMIN COMMENTED END
-    
-    // NEW: Only admin can access their company users
-    if (req.user.role !== 'admin' && req.user.company?.toString() !== companyId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-    
-    const users = await User.find({ company: companyId })
-      .select('-password')
-      .populate('addedBy', 'username email');
-    
-    res.json(users);
-  } catch (error) {
-    console.error('❌ Get company users error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// COMPANY USERS COMMENTED START
+// // @desc    Get users by company
+// // @route   GET /api/users/company/:companyId
+// // @access  Private/Admin
+// export const getCompanyUsers = async (req, res) => {
+//   try {
+//     const { companyId } = req.params;
+//     
+//     if (req.user.role !== 'admin' && req.user.company?.toString() !== companyId) {
+//       return res.status(403).json({ error: 'Access denied' });
+//     }
+//     
+//     const users = await User.find({ company: companyId })
+//       .select('-password')
+//       .populate('addedBy', 'username email');
+//     
+//     res.json(users);
+//   } catch (error) {
+//     console.error('❌ Get company users error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// COMPANY USERS COMMENTED END
 
 // SIMPLE USER CREATION COMMENTED START
 // // @desc    Create a new user
@@ -55,8 +52,6 @@ export const getCompanyUsers = async (req, res) => {
 // export const createUser = async (req, res) => {
 //   try {
 //     const { username, email, password, role } = req.body;
-//     
-//     console.log('📝 Creating user with data:', { username, email, role });
 //     
 //     if (!username || !email || !password) {
 //       return res.status(400).json({ error: 'Please provide username, email and password' });
@@ -67,46 +62,28 @@ export const getCompanyUsers = async (req, res) => {
 //       return res.status(400).json({ error: 'User already exists' });
 //     }
 // 
-//     let companyId = null;
-//     let company = null;
-//     
-//     // NEW: Get the admin user (current user)
 //     const admin = await User.findById(req.user.id);
 //     if (!admin) {
 //       return res.status(404).json({ error: 'Admin not found' });
 //     }
 // 
-//     // NEW: Check if admin has company
 //     if (!admin.company) {
 //       return res.status(403).json({ 
 //         error: 'You do not have a company. Please contact support.' 
 //       });
 //     }
 // 
-//     // Get the company
 //     company = await Company.findById(admin.company);
 //     if (!company) {
 //       return res.status(404).json({ error: 'Company not found' });
 //     }
 // 
-//     // 🔥 NEW: CHECK ACCOUNT AGE (48 hours = 172800000 milliseconds)
-//     const ACCOUNT_AGE_REQUIREMENT = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
-//     const STORAGE_REQUIREMENT = 0.14 * 1024 * 1024; // 0.14 MB in bytes (143360 bytes ≈ 140 KB)
+//     const ACCOUNT_AGE_REQUIREMENT = 48 * 60 * 60 * 1000;
+//     const STORAGE_REQUIREMENT = 0.14 * 1024 * 1024;
 // 
 //     const accountAge = Date.now() - new Date(admin.createdAt).getTime();
 //     const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
 //     
-//     console.log('🔍 Admin eligibility check:', {
-//       username: admin.username,
-//       accountAge: `${accountAgeInHours} hours`,
-//       requiredAge: '48 hours',
-//       storageUsed: `${(admin.storageUsed / (1024 * 1024)).toFixed(2)} MB`,
-//       requiredStorage: '0.14 MB',
-//       meetsAgeRequirement: accountAge >= ACCOUNT_AGE_REQUIREMENT,
-//       meetsStorageRequirement: admin.storageUsed > STORAGE_REQUIREMENT
-//     });
-// 
-//     // Check account age requirement
 //     if (accountAge < ACCOUNT_AGE_REQUIREMENT) {
 //       const hoursRemaining = ((ACCOUNT_AGE_REQUIREMENT - accountAge) / (60 * 60 * 1000)).toFixed(1);
 //       return res.status(403).json({ 
@@ -121,7 +98,6 @@ export const getCompanyUsers = async (req, res) => {
 //       });
 //     }
 // 
-//     // Check storage usage requirement
 //     if (admin.storageUsed <= STORAGE_REQUIREMENT) {
 //       const storageNeededMB = ((STORAGE_REQUIREMENT - admin.storageUsed) / (1024 * 1024)).toFixed(2);
 //       return res.status(403).json({ 
@@ -136,9 +112,6 @@ export const getCompanyUsers = async (req, res) => {
 //       });
 //     }
 // 
-//     console.log('✅ Admin meets all requirements, proceeding with user creation');
-// 
-//     // Users always belong to admin's company
 //     companyId = admin.company;
 // 
 //     const salt = await bcrypt.genSalt(10);
@@ -177,7 +150,6 @@ export const getCompanyUsers = async (req, res) => {
 //     });
 // 
 //     await user.save();
-//     console.log('✅ User created with ID:', user._id);
 // 
 //     if (company) {
 //       company.userCount = await User.countDocuments({ company: company._id });
@@ -198,63 +170,6 @@ export const getCompanyUsers = async (req, res) => {
 //   }
 // };
 // SIMPLE USER CREATION COMMENTED END
-
-// @desc    Update user role
-// @route   PUT /api/users/:id/role
-// @access  Private/Admin
-export const updateUserRole = async (req, res) => {
-  try {
-    const { role } = req.body;
-    const user = await User.findById(req.params.id);
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    let permissions = {
-      view: true, upload: true, download: true, delete: false,
-      addUser: false, removeUser: false, changeRole: false,
-      manageFiles: false, manageStorage: false, assignStorage: false
-    };
-
-    // SUPERADMIN COMMENTED START
-    // if (role === 'admin' || role === 'superAdmin') {
-    // SUPERADMIN COMMENTED END
-    
-    if (role === 'admin') {
-      permissions = {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true,
-        manageFiles: true, manageStorage: true, assignStorage: true
-      };
-    }
-
-    if (role === 'admin' && user.role !== 'admin') {
-      const company = await Company.findById(user.company);
-      if (company) {
-        user.storageAllocated = company.totalStorage;
-      }
-    }
-
-    user.role = role;
-    user.permissions = permissions;
-    await user.save();
-
-    res.json({ 
-      message: 'User role updated',
-      user: {
-        _id: user._id,
-        username: user.username,
-        role: user.role,
-        permissions: user.permissions,
-        storageAllocated: user.storageAllocated
-      }
-    });
-  } catch (error) {
-    console.error('❌ Update role error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
 
 // SIMPLE USER DELETION COMMENTED START
 // // @desc    Delete user
@@ -281,7 +196,6 @@ export const updateUserRole = async (req, res) => {
 //       if (admin) {
 //         admin.allocatedToUsers = (admin.allocatedToUsers || 0) - user.storageAllocated;
 //         await admin.save();
-//         console.log(`✅ Updated admin ${admin.username} allocatedToUsers: -${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
 //       }
 //     }
 // 
@@ -294,7 +208,6 @@ export const updateUserRole = async (req, res) => {
 //     }
 // 
 //     await User.findByIdAndDelete(req.params.id);
-//     console.log('✅ User deleted successfully:', user.username);
 //     
 //     res.json({ 
 //       success: true,
@@ -308,130 +221,170 @@ export const updateUserRole = async (req, res) => {
 // };
 // SIMPLE USER DELETION COMMENTED END
 
-// @desc    Get current user permissions
-// @route   GET /api/users/permissions/me
-// @access  Private
-export const getUserPermissions = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('permissions role company');
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    res.json({
-      permissions: user.permissions,
-      role: user.role,
-      company: user.company
-    });
-  } catch (error) {
-    console.error('❌ Get permissions error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// SIMPLE USER ROLE UPDATE COMMENTED START
+// // @desc    Update user role
+// // @route   PUT /api/users/:id/role
+// // @access  Private/Admin
+// export const updateUserRole = async (req, res) => {
+//   try {
+//     const { role } = req.body;
+//     const user = await User.findById(req.params.id);
+//     
+//     if (!user) {
+//       return res.status(404).json({ error: 'User not found' });
+//     }
+// 
+//     let permissions = {
+//       view: true, upload: true, download: true, delete: false,
+//       addUser: false, removeUser: false, changeRole: false,
+//       manageFiles: false, manageStorage: false, assignStorage: false
+//     };
+// 
+//     if (role === 'admin') {
+//       permissions = {
+//         view: true, upload: true, download: true, delete: true,
+//         addUser: true, removeUser: true, changeRole: true,
+//         manageFiles: true, manageStorage: true, assignStorage: true
+//       };
+//     }
+// 
+//     if (role === 'admin' && user.role !== 'admin') {
+//       const company = await Company.findById(user.company);
+//       if (company) {
+//         user.storageAllocated = company.totalStorage;
+//       }
+//     }
+// 
+//     user.role = role;
+//     user.permissions = permissions;
+//     await user.save();
+// 
+//     res.json({ 
+//       message: 'User role updated',
+//       user: {
+//         _id: user._id,
+//         username: user.username,
+//         role: user.role,
+//         permissions: user.permissions,
+//         storageAllocated: user.storageAllocated
+//       }
+//     });
+//   } catch (error) {
+//     console.error('❌ Update role error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER ROLE UPDATE COMMENTED END
 
-// @desc    Get all roles and permissions
-// @route   GET /api/users/permissions
-// @access  Private/Admin
-export const getAllRolesPermissions = async (req, res) => {
-  try {
-    const roles = {
-      // SUPERADMIN COMMENTED START
-      // superAdmin: {
-      //   view: true, upload: true, download: true, delete: true,
-      //   addUser: true, removeUser: true, changeRole: true, 
-      //   manageFiles: true, manageStorage: true, assignStorage: true
-      // },
-      // SUPERADMIN COMMENTED END
-      admin: {
-        view: true, upload: true, download: true, delete: true,
-        addUser: true, removeUser: true, changeRole: true,
-        manageFiles: true, manageStorage: true, assignStorage: true
-      },
-      user: {
-        view: true, upload: true, download: true, delete: false,
-        addUser: false, removeUser: false, changeRole: false,
-        manageFiles: false, manageStorage: false, assignStorage: false
-      }
-    };
-    
-    let customRoles = [];
-    try {
-      const dbRoles = await Role.find({ isCustom: true });
-      customRoles = dbRoles.map(role => ({
-        name: role.name,
-        displayName: role.displayName,
-        permissions: role.permissions,
-        isCustom: true
-      }));
-    } catch (err) {
-      console.log('ℹ️ Role model not found, using default roles only');
-    }
-    
-    res.json({ 
-      roles,
-      customRoles
-    });
-  } catch (error) {
-    console.error('❌ Get roles permissions error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// SIMPLE USER PERMISSIONS COMMENTED START
+// // @desc    Get current user permissions
+// // @route   GET /api/users/permissions/me
+// // @access  Private
+// export const getUserPermissions = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.user.id).select('permissions role company');
+//     if (!user) {
+//       return res.status(404).json({ error: 'User not found' });
+//     }
+//     
+//     res.json({
+//       permissions: user.permissions,
+//       role: user.role,
+//       company: user.company
+//     });
+//   } catch (error) {
+//     console.error('❌ Get permissions error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER PERMISSIONS COMMENTED END
 
-// @desc    Get user quota
-// @route   GET /api/users/quota
-// @access  Private
-export const getQuota = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id)
-      .select('storageAllocated storageUsed allocatedToUsers username role createdAt');
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    let available = 0;
-    let total = user.storageAllocated || 0;
-    let used = user.storageUsed || 0;
-    
-    // For admin users, available storage = total - used - allocatedToUsers
-    if (user.role === 'admin') {
-      const allocatedToUsers = user.allocatedToUsers || 0;
-      // This is the correct calculation: total minus what admin has used minus what admin has given to users
-      available = Math.max(0, total - used - allocatedToUsers);
-      
-      console.log('👑 Admin quota calculation:', {
-        username: user.username,
-        total: (total / (1024*1024*1024)).toFixed(2) + 'GB',
-        usedBySelf: (used / (1024*1024*1024)).toFixed(2) + 'GB',
-        givenToUsers: (allocatedToUsers / (1024*1024*1024)).toFixed(2) + 'GB',
-        available: (available / (1024*1024*1024)).toFixed(2) + 'GB'
-      });
-    } else {
-      // For regular users, available = total - used
-      available = Math.max(0, total - used);
-    }
-    
-    // Calculate percentage of used storage (excluding allocations to users)
-    // For admin, this should be (used / total) * 100
-    const percentage = total > 0 ? ((used / total) * 100).toFixed(1) : 0;
-    
-    // NEW: Add account age info for eligibility checking
-    const accountAge = Date.now() - new Date(user.createdAt).getTime();
-    const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
-    
-    res.json({
-      used: used,
-      total: total,
-      available: available,
-      percentage: parseFloat(percentage),
-      accountAge: accountAgeInHours, // NEW: Return account age
-      createdAt: user.createdAt // NEW: Return creation date
-    });
-  } catch (error) {
-    console.error('❌ Get quota error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
+// PERMISSIONS API COMMENTED START
+// // @desc    Get all roles and permissions
+// // @route   GET /api/users/permissions
+// // @access  Private/Admin
+// export const getAllRolesPermissions = async (req, res) => {
+//   try {
+//     const roles = {
+//       admin: {
+//         view: true, upload: true, download: true, delete: true,
+//         addUser: true, removeUser: true, changeRole: true,
+//         manageFiles: true, manageStorage: true, assignStorage: true
+//       },
+//       user: {
+//         view: true, upload: true, download: true, delete: false,
+//         addUser: false, removeUser: false, changeRole: false,
+//         manageFiles: false, manageStorage: false, assignStorage: false
+//       }
+//     };
+//     
+//     let customRoles = [];
+//     try {
+//       const dbRoles = await Role.find({ isCustom: true });
+//       customRoles = dbRoles.map(role => ({
+//         name: role.name,
+//         displayName: role.displayName,
+//         permissions: role.permissions,
+//         isCustom: true
+//       }));
+//     } catch (err) {
+//       console.log('ℹ️ Role model not found, using default roles only');
+//     }
+//     
+//     res.json({ 
+//       roles,
+//       customRoles
+//     });
+//   } catch (error) {
+//     console.error('❌ Get roles permissions error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// PERMISSIONS API COMMENTED END
+
+// SIMPLE USER QUOTA COMMENTED START
+// // @desc    Get user quota
+// // @route   GET /api/users/quota
+// // @access  Private
+// export const getQuota = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.user.id)
+//       .select('storageAllocated storageUsed allocatedToUsers username role createdAt');
+//     
+//     if (!user) {
+//       return res.status(404).json({ error: 'User not found' });
+//     }
+//     
+//     let available = 0;
+//     let total = user.storageAllocated || 0;
+//     let used = user.storageUsed || 0;
+//     
+//     if (user.role === 'admin') {
+//       const allocatedToUsers = user.allocatedToUsers || 0;
+//       available = Math.max(0, total - used - allocatedToUsers);
+//     } else {
+//       available = Math.max(0, total - used);
+//     }
+//     
+//     const percentage = total > 0 ? ((used / total) * 100).toFixed(1) : 0;
+//     
+//     const accountAge = Date.now() - new Date(user.createdAt).getTime();
+//     const accountAgeInHours = (accountAge / (60 * 60 * 1000)).toFixed(1);
+//     
+//     res.json({
+//       used: used,
+//       total: total,
+//       available: available,
+//       percentage: parseFloat(percentage),
+//       accountAge: accountAgeInHours,
+//       createdAt: user.createdAt
+//     });
+//   } catch (error) {
+//     console.error('❌ Get quota error:', error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+// SIMPLE USER QUOTA COMMENTED END
 
 // SUPERADMIN COMMENTED START
 // // @desc    Update all roles permissions
@@ -556,17 +509,16 @@ export const getQuota = async (req, res) => {
 // };
 // SUPERADMIN COMMENTED END
 
-// Export all functions
 export default {
   // SUPERADMIN COMMENTED: getAllUsers,
-  getCompanyUsers,
+  // COMPANY USERS COMMENTED: getCompanyUsers,
   // SIMPLE USER CREATION COMMENTED: createUser,
-  updateUserRole,
+  // SIMPLE USER ROLE UPDATE COMMENTED: updateUserRole,
   // SIMPLE USER DELETION COMMENTED: deleteUser,
-  getUserPermissions,
-  getAllRolesPermissions,
+  // SIMPLE USER PERMISSIONS COMMENTED: getUserPermissions,
+  // PERMISSIONS API COMMENTED: getAllRolesPermissions,
   // SUPERADMIN COMMENTED: updateAllRolesPermissions,
   // SUPERADMIN COMMENTED: deleteCustomRole,
   // SUPERADMIN COMMENTED: syncAdminStorage,
-  getQuota
+  // SIMPLE USER QUOTA COMMENTED: getQuota
 };

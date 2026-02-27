@@ -16,84 +16,35 @@ const router = express.Router();
  * /auth/register:
  *   post:
  *     summary: Register a new user
- *     description: Creates a new user account. First user becomes admin with their own company.
+ *     description: Creates a new user account.
  *     tags: [Auth]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - username
- *               - email
- *               - password
- *             properties:
- *               username:
- *                 type: string
- *                 example: john_doe
- *               email:
- *                 type: string
- *                 format: email
- *                 example: john@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
+ *             $ref: '#/components/schemas/RegisterRequest'
  *     responses:
  *       201:
  *         description: User registered successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: User registered successfully
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@example.com
- *                     role:
- *                       type: string
- *                       example: admin
- *                     company:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c86
- *                     companyName:
- *                       type: string
- *                       example: john_doe's Company
- *                     storageAllocated:
- *                       type: number
- *                       example: 53687091200
- *                     storageUsed:
- *                       type: number
- *                       example: 0
- *                 token:
- *                   type: string
- *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: User already exists
+ *               oneOf:
+ *                 - $ref: '#/components/schemas/ValidationErrorResponse'
+ *                 - $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/register', register);
 
@@ -109,73 +60,32 @@ router.post('/register', register);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: john@example.com
- *               password:
- *                 type: string
- *                 format: password
- *                 example: password123
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       200:
  *         description: Login successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Login successful
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@example.com
- *                     role:
- *                       type: string
- *                       example: admin
- *                     company:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c86
- *                     companyName:
- *                       type: string
- *                       example: john_doe's Company
- *                     storageAllocated:
- *                       type: number
- *                       example: 53687091200
- *                     storageUsed:
- *                       type: number
- *                       example: 1048576
- *                 token:
- *                   type: string
- *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Missing credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
  *       401:
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: Invalid email or password
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/login', login);
 
@@ -194,91 +104,19 @@ router.post('/login', login);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@example.com
- *                     role:
- *                       type: string
- *                       example: admin
- *                     company:
- *                       type: object
- *                       properties:
- *                         _id:
- *                           type: string
- *                           example: 60d21b4667d0d8992e610c86
- *                         name:
- *                           type: string
- *                           example: john_doe's Company
- *                         totalStorage:
- *                           type: number
- *                           example: 53687091200
- *                         usedStorage:
- *                           type: number
- *                           example: 1048576
- *                     permissions:
- *                       type: object
- *                       properties:
- *                         view:
- *                           type: boolean
- *                           example: true
- *                         upload:
- *                           type: boolean
- *                           example: true
- *                         download:
- *                           type: boolean
- *                           example: true
- *                         delete:
- *                           type: boolean
- *                           example: true
- *                         addUser:
- *                           type: boolean
- *                           example: true
- *                         removeUser:
- *                           type: boolean
- *                           example: true
- *                         changeRole:
- *                           type: boolean
- *                           example: true
- *                         manageFiles:
- *                           type: boolean
- *                           example: true
- *                         manageStorage:
- *                           type: boolean
- *                           example: true
- *                         assignStorage:
- *                           type: boolean
- *                           example: true
- *                     storage:
- *                       type: object
- *                       properties:
- *                         allocated:
- *                           type: number
- *                           example: 53687091200
- *                         used:
- *                           type: number
- *                           example: 1048576
- *                         available:
- *                           type: number
- *                           example: 52638515200
- *                         allocatedToUsers:
- *                           type: number
- *                           example: 0
+ *               $ref: '#/components/schemas/UserProfileResponse'
  *       401:
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/profile', protect, getProfile);
 
@@ -296,50 +134,32 @@ router.get('/profile', protect, getProfile);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - access_token
- *             properties:
- *               access_token:
- *                 type: string
- *                 description: Google OAuth access token
- *                 example: ya29.a0AfH6SMC...
+ *             $ref: '#/components/schemas/GoogleAuthRequest'
  *     responses:
  *       200:
  *         description: Google login successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@gmail.com
- *                     role:
- *                       type: string
- *                       example: admin
- *                     company:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c86
- *                     companyName:
- *                       type: string
- *                       example: john_doe's Company
+ *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Missing token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
  *       401:
  *         description: Invalid Google token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/google', async (req, res) => {
   try {
@@ -384,13 +204,13 @@ router.post('/google', async (req, res) => {
       // NEW: All users are admin
       const role = 'admin';
       
-      // 🔥 FIX: Create user FIRST (with null company)
+      // Create user WITHOUT company
       user = await User.create({
         username: username,
         email: profile.email,
         password: await bcrypt.hash(Math.random().toString(36), 10),
         role: role,
-        company: null,  // Temporary null
+        company: null,  // ⬅️ Keep company as null
         authProvider: 'google',
         authProviderId: profile.sub,
         avatar: profile.picture,
@@ -399,46 +219,48 @@ router.post('/google', async (req, res) => {
         // SUPERADMIN COMMENTED END
         
         // NEW: All users get storage
-        storageAllocated: 5 * 1024 * 1024 * 1024,
+        storageAllocated: 10 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // SUPERADMIN COMMENTED START
-      // // Only create company for admin users (not superAdmin)
-      // if (role === 'admin') {
-      // SUPERADMIN COMMENTED END
+      // COMPANY CREATION COMMENTED OUT START
+      // // SUPERADMIN COMMENTED START
+      // // // Only create company for admin users (not superAdmin)
+      // // if (role === 'admin') {
+      // // SUPERADMIN COMMENTED END
+      // 
+      // // NEW: Always create company
+      // console.log('Creating company for user...');
+      // 
+      // // Create company with owner set to user ID
+      // const company = await Company.create({
+      //   name: `${username}'s Company`,
+      //   owner: user._id,  // Now user._id exists
+      //   totalStorage: 5 * 1024 * 1024 * 1024,
+      //   usedStorage: 0,
+      //   // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+      //   userCount: 1
+      // });
+      // 
+      // console.log('✅ Company created with ID:', company._id);
+      // 
+      // // Update user with company ID
+      // user.company = company._id;
+      // await user.save();
+      // COMPANY CREATION COMMENTED OUT END
       
-      // NEW: Always create company
-      console.log('Creating company for user...');
-      
-      // Create company with owner set to user ID
-      const company = await Company.create({
-        name: `${username}'s Company`,
-        owner: user._id,  // Now user._id exists
-        totalStorage: 5 * 1024 * 1024 * 1024,
-        usedStorage: 0,
-        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
-        userCount: 1
-      });
-      
-      console.log('✅ Company created with ID:', company._id);
-      
-      // Update user with company ID
-      user.company = company._id;
-      await user.save();
-      
-      // Populate company for response
+      // Populate company for response (will be null)
       user = await User.findById(user._id).populate('company');
     }
     
-    // Generate JWT
+    // Generate JWT with null company
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: user.company?._id?.toString() || null 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -449,8 +271,8 @@ router.post('/google', async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      company: user.company?._id || null,
-      companyName: user.company?.name || null,
+      company: null,  // ⬅️ Set to null
+      companyName: null,  // ⬅️ Set to null
       permissions: user.permissions,
       avatar: user.avatar,
       authProvider: user.authProvider,
@@ -484,7 +306,7 @@ router.get('/google/callback',
       { 
         id: req.user._id.toString(), 
         role: req.user.role, 
-        company: req.user.company?._id?.toString() 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -509,44 +331,32 @@ router.get('/google/callback',
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - access_token
- *             properties:
- *               access_token:
- *                 type: string
- *                 description: Facebook OAuth access token
- *                 example: EAAJsm...
+ *             $ref: '#/components/schemas/FacebookAuthRequest'
  *     responses:
  *       200:
  *         description: Facebook login successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@facebook.com
- *                     role:
- *                       type: string
- *                       example: admin
+ *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Missing token or email not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
  *       401:
  *         description: Invalid Facebook token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/facebook', async (req, res) => {
   try {
@@ -588,13 +398,13 @@ router.post('/facebook', async (req, res) => {
       // NEW: All users are admin
       const role = 'admin';
       
-      // 🔥 FIX: Create user FIRST
+      // Create user WITHOUT company
       user = await User.create({
         username: username,
         email: profile.email,
         password: await bcrypt.hash(Math.random().toString(36), 10),
         role: role,
-        company: null,
+        company: null,  // ⬅️ Keep company as null
         authProvider: 'facebook',
         authProviderId: profile.id,
         avatar: profile.picture?.data?.url,
@@ -603,42 +413,45 @@ router.post('/facebook', async (req, res) => {
         // SUPERADMIN COMMENTED END
         
         // NEW: All users get storage
-        storageAllocated: 5 * 1024 * 1024 * 1024,
+        storageAllocated: 10 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // SUPERADMIN COMMENTED START
-      // // Create company for admin
-      // if (role === 'admin') {
-      // SUPERADMIN COMMENTED END
+      // COMPANY CREATION COMMENTED OUT START
+      // // SUPERADMIN COMMENTED START
+      // // // Create company for admin
+      // // if (role === 'admin') {
+      // // SUPERADMIN COMMENTED END
+      // 
+      // // NEW: Always create company
+      // console.log('Creating company for user...');
+      // 
+      // const company = await Company.create({
+      //   name: `${username}'s Company`,
+      //   owner: user._id,
+      //   totalStorage: 5 * 1024 * 1024 * 1024,
+      //   usedStorage: 0,
+      //   // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+      //   userCount: 1
+      // });
+      // 
+      // console.log('✅ Company created with ID:', company._id);
+      // 
+      // user.company = company._id;
+      // await user.save();
+      // COMPANY CREATION COMMENTED OUT END
       
-      // NEW: Always create company
-      console.log('Creating company for user...');
-      
-      const company = await Company.create({
-        name: `${username}'s Company`,
-        owner: user._id,
-        totalStorage: 5 * 1024 * 1024 * 1024,
-        usedStorage: 0,
-        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
-        userCount: 1
-      });
-      
-      console.log('✅ Company created with ID:', company._id);
-      
-      user.company = company._id;
-      await user.save();
       user = await User.findById(user._id).populate('company');
     }
     
-    // Generate JWT
+    // Generate JWT with null company
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: user.company?._id?.toString() 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -649,8 +462,8 @@ router.post('/facebook', async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      company: user.company?._id,
-      companyName: user.company?.name,
+      company: null,  // ⬅️ Set to null
+      companyName: null,  // ⬅️ Set to null
       permissions: user.permissions,
       avatar: user.avatar,
       authProvider: user.authProvider,
@@ -684,7 +497,7 @@ router.get('/facebook/callback',
       { 
         id: req.user._id.toString(), 
         role: req.user.role, 
-        company: req.user.company?._id?.toString() 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -709,44 +522,32 @@ router.get('/facebook/callback',
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - access_token
- *             properties:
- *               access_token:
- *                 type: string
- *                 description: Microsoft OAuth access token
- *                 example: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1Ni...
+ *             $ref: '#/components/schemas/MicrosoftAuthRequest'
  *     responses:
  *       200:
  *         description: Microsoft login successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 token:
- *                   type: string
- *                   example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
- *                 user:
- *                   type: object
- *                   properties:
- *                     _id:
- *                       type: string
- *                       example: 60d21b4667d0d8992e610c85
- *                     username:
- *                       type: string
- *                       example: john_doe
- *                     email:
- *                       type: string
- *                       example: john@outlook.com
- *                     role:
- *                       type: string
- *                       example: admin
+ *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Missing token or email not provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationErrorResponse'
  *       401:
  *         description: Invalid Microsoft token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       500:
+ *         description: Authentication failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post('/microsoft', async (req, res) => {
   try {
@@ -793,13 +594,13 @@ router.post('/microsoft', async (req, res) => {
       // NEW: All users are admin
       const role = 'admin';
       
-      // 🔥 FIX: Create user FIRST
+      // Create user WITHOUT company
       user = await User.create({
         username: username,
         email: email,
         password: await bcrypt.hash(Math.random().toString(36), 10),
         role: role,
-        company: null,
+        company: null,  // ⬅️ Keep company as null
         authProvider: 'microsoft',
         authProviderId: profile.id,
         avatar: null,
@@ -808,42 +609,45 @@ router.post('/microsoft', async (req, res) => {
         // SUPERADMIN COMMENTED END
         
         // NEW: All users get storage
-        storageAllocated: 5 * 1024 * 1024 * 1024,
+        storageAllocated: 10 * 1024 * 1024 * 1024,
         storageUsed: 0
       });
       
       console.log('✅ User created with ID:', user._id);
       
-      // SUPERADMIN COMMENTED START
-      // // Create company for admin
-      // if (role === 'admin') {
-      // SUPERADMIN COMMENTED END
+      // COMPANY CREATION COMMENTED OUT START
+      // // SUPERADMIN COMMENTED START
+      // // // Create company for admin
+      // // if (role === 'admin') {
+      // // SUPERADMIN COMMENTED END
+      // 
+      // // NEW: Always create company
+      // console.log('Creating company for user...');
+      // 
+      // const company = await Company.create({
+      //   name: `${username}'s Company`,
+      //   owner: user._id,
+      //   totalStorage: 10 * 1024 * 1024 * 1024, // 10GB
+      //   usedStorage: 0,
+      //   // SUPERADMIN COMMENTED: allocatedToUsers: 0,
+      //   userCount: 1
+      // });
+      // 
+      // console.log('✅ Company created with ID:', company._id);
+      // 
+      // user.company = company._id;
+      // await user.save();
+      // COMPANY CREATION COMMENTED OUT END
       
-      // NEW: Always create company
-      console.log('Creating company for user...');
-      
-      const company = await Company.create({
-        name: `${username}'s Company`,
-        owner: user._id,
-        totalStorage: 5 * 1024 * 1024 * 1024,
-        usedStorage: 0,
-        // SUPERADMIN COMMENTED: allocatedToUsers: 0,
-        userCount: 1
-      });
-      
-      console.log('✅ Company created with ID:', company._id);
-      
-      user.company = company._id;
-      await user.save();
       user = await User.findById(user._id).populate('company');
     }
     
-    // Generate JWT
+    // Generate JWT with null company
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: user.company?._id?.toString() 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -854,8 +658,8 @@ router.post('/microsoft', async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      company: user.company?._id,
-      companyName: user.company?.name,
+      company: null,  // ⬅️ Set to null
+      companyName: null,  // ⬅️ Set to null
       permissions: user.permissions,
       avatar: user.avatar,
       authProvider: user.authProvider,
@@ -889,7 +693,7 @@ router.get('/microsoft/callback',
       { 
         id: req.user._id.toString(), 
         role: req.user.role, 
-        company: req.user.company?._id?.toString() 
+        company: null  // ⬅️ Set to null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }

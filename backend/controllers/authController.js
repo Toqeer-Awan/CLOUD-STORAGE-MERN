@@ -85,7 +85,7 @@ export const register = async (req, res) => {
       email,
       password: hashedPassword,
       role: role,
-      company: null,
+      company: null,  // ⬅️ Keep company as null
       addedBy: null,
       storageAllocated: 50 * 1024 * 1024 * 1024, // All users get 50GB
       storageUsed: 0,
@@ -94,47 +94,49 @@ export const register = async (req, res) => {
     
     console.log(`✅ User created with ID: ${user._id}`);
     
-    let company = null;
+    // COMPANY CREATION COMMENTED OUT START
+    // let company = null;
     
     // SUPERADMIN COMMENTED START
     // // Create company for admin users (not for superAdmin)
     // if (role === 'admin') {
     // SUPERADMIN COMMENTED END
     
-    // NEW: All users create company (first user's company name, others join? - this needs adjustment)
-    // For now, all users create their own company
-    const companyName = `${username}'s Company`;
+    // // NEW: All users create company (first user's company name, others join? - this needs adjustment)
+    // // For now, all users create their own company
+    // const companyName = `${username}'s Company`;
     
-    console.log(`🏢 Creating company: ${companyName} for user: ${username}`);
+    // console.log(`🏢 Creating company: ${companyName} for user: ${username}`);
     
-    company = await Company.create({
-      name: companyName,
-      owner: user._id,
-      totalStorage: 50 * 1024 * 1024 * 1024, // 50GB for company
-      usedStorage: 0,
-      userCount: 1,
-      createdBy: null
-    });
+    // company = await Company.create({
+    //   name: companyName,
+    //   owner: user._id,
+    //   totalStorage: 50 * 1024 * 1024 * 1024, // 50GB for company
+    //   usedStorage: 0,
+    //   userCount: 1,
+    //   createdBy: null
+    // });
     
-    // Update user with company ID
-    user.company = company._id;
-    await user.save();
+    // // Update user with company ID
+    // user.company = company._id;
+    // await user.save();
     
-    console.log(`✅ Company created with ID: ${company._id}`);
+    // console.log(`✅ Company created with ID: ${company._id}`);
     
-    console.log(`📊 Storage summary:`);
-    console.log(`   - Role: ${role}`);
-    console.log(`   - User storage allocated: ${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
-    if (company) {
-      console.log(`   - Company total storage: ${(company.totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
-    }
+    // console.log(`📊 Storage summary:`);
+    // console.log(`   - Role: ${role}`);
+    // console.log(`   - User storage allocated: ${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
+    // if (company) {
+    //   console.log(`   - Company total storage: ${(company.totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
+    // }
+    // COMPANY CREATION COMMENTED OUT END
     
     // Generate JWT token
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: company?._id?.toString() || null 
+        company: null  // ⬅️ Set company to null in token
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
@@ -146,8 +148,8 @@ export const register = async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      company: company?._id || null,
-      companyName: company?.name || null,
+      company: null,  // ⬅️ Set company to null in response
+      companyName: null,  // ⬅️ Set companyName to null
       permissions: user.permissions,
       storageAllocated: user.storageAllocated,
       storageUsed: user.storageUsed,
@@ -158,7 +160,7 @@ export const register = async (req, res) => {
       success: true,
       message: 'User registered successfully',
       user: userResponse,
-      company: company,
+      // company: company,  ⬅️ Comment out company from response
       token
     });
     

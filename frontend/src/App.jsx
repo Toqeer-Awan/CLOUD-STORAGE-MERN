@@ -12,13 +12,13 @@ import AllFiles from './pages/AllFiles';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import OAuthCallback from './pages/OAuthCallback';
+// COMPANY DASHBOARD COMMENTED: import CompanyDashboard from './components/CompanyDashboard';
 // SIMPLE USER CREATION PAGE COMMENTED: import AddUser from './pages/AddUser';
 // SUPERADMIN COMMENTED START
 // import UserList from './pages/UserList';
 // import RolesPermissions from './pages/RolePermissions';
 // import AdminCompanies from './components/AdminCompanies';
 // SUPERADMIN COMMENTED END
-import CompanyDashboard from './components/CompanyDashboard';
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
@@ -26,7 +26,6 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // SUPERADMIN COMMENTED START
-// // Only SuperAdmin can access these routes
 // const SuperAdminRoute = ({ children }) => {
 //   const user = JSON.parse(localStorage.getItem('user'));
 //   const token = localStorage.getItem('token');
@@ -38,17 +37,11 @@ const ProtectedRoute = ({ children }) => {
 // };
 // SUPERADMIN COMMENTED END
 
-// Admin and SuperAdmin can access these routes
 const AdminRoute = ({ children }) => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
   
   if (!token) return <Navigate to="/login" />;
-  // SUPERADMIN COMMENTED START
-  // if (user?.role !== 'admin' && user?.role !== 'superAdmin') return <Navigate to="/" />;
-  // SUPERADMIN COMMENTED END
-  
-  // NEW: Only admin role
   if (user?.role !== 'admin') return <Navigate to="/" />;
   
   return children;
@@ -77,11 +70,13 @@ function App() {
                 <Route path="upload" element={<Upload />} />
                 <Route path="files" element={<AllFiles />} />
                 
-                <Route path="company" element={
+                {/* COMPANY ROUTE COMMENTED START */}
+                {/* <Route path="company" element={
                   <AdminRoute>
                     <CompanyDashboard />
                   </AdminRoute>
-                } />
+                } /> */}
+                {/* COMPANY ROUTE COMMENTED END */}
                 
                 {/* SIMPLE USER CREATION ROUTE COMMENTED START */}
                 {/* <Route path="users/add" element={

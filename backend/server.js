@@ -17,9 +17,11 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
-import roleRoutes from './routes/roleRoutes.js';
-import permissionsRoutes from './routes/permission.js';
-import companyRoutes from './routes/companyRoutes.js';
+// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED START
+// import roleRoutes from './routes/roleRoutes.js';
+// import permissionsRoutes from './routes/permission.js';
+// import companyRoutes from './routes/companyRoutes.js';
+// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED END
 import storageRoutes from './routes/storageRoutes.js';
 import './config/passport.js';
 import b2 from './config/b2.js';
@@ -34,7 +36,6 @@ const getLocalIp = () => {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      // Skip internal and non-IPv4 addresses
       if (net.family === 'IPv4' && !net.internal) {
         return net.address;
       }
@@ -80,14 +81,14 @@ app.use(session({
   saveUninitialized: false,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 24 * 60 * 60 * 1000
   }
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ===== FIXED CORS CONFIGURATION =====
+// ===== CORS CONFIGURATION =====
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
@@ -95,41 +96,23 @@ const allowedOrigins = [
   'http://localhost:5175',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
-   'http://192.168.1.11:5000',
+  'http://192.168.1.11:5000',
   'http://192.168.1.11:5173',
   `http://${LOCAL_IP}:3000`,
   `http://${LOCAL_IP}:5173`,
   `http://${LOCAL_IP}:5174`,
   `http://${LOCAL_IP}:5175`,
   `http://${LOCAL_IP}:5000`,
-  // Allow all local network IPs (for development)
   /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(3000|5173|5174|5175|5000)$/
 ];
 
-// CORS middleware
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps, curl, Postman)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-    
-    // Check regex pattern for local network IPs
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
     const regexPattern = /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:(3000|5173|5174|5175|5000)$/;
-    if (regexPattern.test(origin)) {
-      return callback(null, true);
-    }
-    
-    // FOR DEVELOPMENT ONLY - Allow all origins
-    if (process.env.NODE_ENV !== 'production') {
-      return callback(null, true);
-    }
-    
+    if (regexPattern.test(origin)) return callback(null, true);
+    if (process.env.NODE_ENV !== 'production') return callback(null, true);
     console.log('❌ CORS blocked origin:', origin);
     callback(new Error(`CORS policy: ${origin} not allowed`));
   },
@@ -140,26 +123,15 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// ❌ REMOVED THE PROBLEMATIC LINE: app.options('*', cors());
-
-// Additional CORS headers middleware (for extra safety)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  
-  // In development, echo back the origin
   if (process.env.NODE_ENV !== 'production' && origin) {
     res.header('Access-Control-Allow-Origin', origin);
   }
-  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.header('Access-Control-Allow-Credentials', 'true');
-  
-  // Handle OPTIONS method
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
+  if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
 
@@ -211,9 +183,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
-app.use('/api/roles', roleRoutes);
-app.use('/api/permissions', permissionsRoutes);
-app.use('/api/companies', companyRoutes);
+// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED START
+// app.use('/api/roles', roleRoutes);
+// app.use('/api/permissions', permissionsRoutes);
+// app.use('/api/companies', companyRoutes);
+// COMPANY/ROLES/PERMISSIONS ROUTES COMMENTED END
 app.use('/api/storage', storageRoutes);
 
 // ===== TEST ENDPOINTS =====
@@ -237,17 +211,12 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===== SWAGGER DOCUMENTATION =====
-// Special CORS handling for Swagger
 app.use('/api-docs', (req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
+  if (req.method === 'OPTIONS') return res.status(200).end();
   next();
 });
 
@@ -263,14 +232,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
   }
 }));
 
-// Serve OpenAPI spec as JSON
 app.get('/api-docs.json', (req, res) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpecs);
 });
 
-// Redirect root to Swagger docs in development
 if (process.env.NODE_ENV !== 'production') {
   app.get('/', (req, res) => {
     res.redirect('/api-docs');
@@ -286,7 +253,6 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('❌ Server Error:', err.message);
   console.error('📚 Stack:', err.stack);
-  
   res.status(500).json({ 
     error: 'Internal server error',
     message: process.env.NODE_ENV === 'development' ? err.message : undefined
