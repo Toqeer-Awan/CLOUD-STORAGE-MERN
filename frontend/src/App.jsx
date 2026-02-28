@@ -12,6 +12,7 @@ import AllFiles from './pages/AllFiles';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import OAuthCallback from './pages/OAuthCallback';
+import UpgradePlan from './pages/UpgradePlan';
 // COMPANY DASHBOARD COMMENTED: import CompanyDashboard from './components/CompanyDashboard';
 // SIMPLE USER CREATION PAGE COMMENTED: import AddUser from './pages/AddUser';
 // SUPERADMIN COMMENTED START
@@ -57,10 +58,12 @@ function App() {
           <BrowserRouter>
             <ToasterProvider />
             <Routes>
+              {/* Public Routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/oauth-callback" element={<OAuthCallback />} />
               
+              {/* Protected Routes */}
               <Route path="/" element={
                 <ProtectedRoute>
                   <MainLayout />
@@ -69,6 +72,7 @@ function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="upload" element={<Upload />} />
                 <Route path="files" element={<AllFiles />} />
+                <Route path="upgrade" element={<UpgradePlan />} />
                 
                 {/* COMPANY ROUTE COMMENTED START */}
                 {/* <Route path="company" element={
@@ -107,6 +111,7 @@ function App() {
                 {/* SUPERADMIN COMMENTED END */}
               </Route>
               
+              {/* Catch all - redirect to home */}
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </BrowserRouter>

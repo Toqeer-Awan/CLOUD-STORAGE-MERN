@@ -268,20 +268,6 @@ const AllFiles = () => {
             </div>
           </div>
           <div className="flex gap-2">
-            {selectedFiles.length > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                disabled={bulkLoading}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg disabled:opacity-50 transition-colors"
-              >
-                {bulkLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                ) : (
-                  <MdDeleteSweep size={18} />
-                )}
-                {bulkLoading ? 'Deleting...' : `Delete (${selectedFiles.length})`}
-              </button>
-            )}
             <button 
               onClick={fetchFiles} 
               disabled={loading} 
@@ -329,7 +315,7 @@ const AllFiles = () => {
           })}
         </div>
 
-        {selectedFiles.length > 0 && (
+        {/* {selectedFiles.length > 0 && (
           <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
@@ -356,7 +342,7 @@ const AllFiles = () => {
               Clear Selection
             </button>
           </div>
-        )}
+        )} */}
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">

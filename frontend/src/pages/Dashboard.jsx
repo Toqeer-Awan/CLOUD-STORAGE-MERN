@@ -457,7 +457,7 @@ const Dashboard = () => {
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Recent Files</h3>
           
           {/* NEW: Bulk delete button for selected files */}
-          {selectedFiles.length > 0 && (
+          {/* {selectedFiles.length > 0 && (
             <button
               onClick={handleBulkDelete}
               disabled={bulkLoading}
@@ -470,24 +470,8 @@ const Dashboard = () => {
               )}
               {bulkLoading ? 'Deleting...' : `Delete (${selectedFiles.length})`}
             </button>
-          )}
+          )} */}
         </div>
-
-        {/* NEW: Selection info bar */}
-        {selectedFiles.length > 0 && (
-          <div className="px-6 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <span className="text-sm text-blue-700 dark:text-blue-300">
-              {selectedFiles.length} file(s) selected
-            </span>
-            <button
-              onClick={handleClearSelection}
-              className="text-sm text-blue-700 dark:text-blue-300 hover:underline"
-            >
-              Clear Selection
-            </button>
-          </div>
-        )}
-
         {recentFiles.length > 0 ? (
           <FileTable 
             files={recentFiles} 

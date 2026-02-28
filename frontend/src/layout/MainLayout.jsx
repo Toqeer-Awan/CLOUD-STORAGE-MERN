@@ -4,12 +4,14 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../redux/slices/authSlice';
 import useToast from '../hooks/useToast';
 import { useTheme } from '../context/ThemeContext';
+import useQuota from '../hooks/useQuota';
+import QuotaDashboard from '../components/QuotaDashboard';
 import {
   MdDashboard, MdUpload, MdFolder, MdPeople,
   MdBusiness, MdLogout, MdMenu,
   MdClose, MdPersonAdd, MdList, MdSecurity,
   MdStorage, MdDarkMode, MdLightMode,
-  MdAdminPanelSettings
+  MdAdminPanelSettings, MdUpgrade
 } from 'react-icons/md';
 
 const MainLayout = () => {
@@ -20,6 +22,7 @@ const MainLayout = () => {
   const location = useLocation();
   const toast = useToast();
   const { darkMode, toggleDarkMode } = useTheme();
+  const quota = useQuota();
 
   const handleLogout = () => {
     dispatch(logout());
@@ -65,9 +68,11 @@ const MainLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 fixed h-full z-30`}>
+      {/* Sidebar */}
+      <aside className={`${sidebarOpen ? 'w-80' : 'w-20'} bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 fixed h-full z-30 flex flex-col overflow-y-auto`}>
         <div className="h-full flex flex-col">
-          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
+          {/* Logo */}
+          <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
             {sidebarOpen ? (
               <span className="text-xl font-bold text-orange-600 dark:text-orange-500">
                 CloudStore
@@ -83,19 +88,20 @@ const MainLayout = () => {
             </button>
           </div>
 
+          {/* User Info */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center">
-              <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-orange-600 dark:text-orange-500 font-bold text-lg">
                   {userDisplay.initial}
                 </span>
               </div>
               {sidebarOpen && (
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-800 dark:text-white truncate max-w-[140px]">
+                <div className="ml-3 min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
                     {userDisplay.name}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 capitalize flex items-center gap-1">
                     {userDisplay.role}
                   </p>
                 </div>
@@ -103,6 +109,35 @@ const MainLayout = () => {
             </div>
           </div>
 
+          {/* Quota Dashboard - Compact Version */}
+          {sidebarOpen && (
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <QuotaDashboard showDetails={false} />
+            </div>
+          )}
+
+          {/* Upgrade Banner - Show when on free plan and sidebar is open */}
+          {sidebarOpen && quota.plan === 'free' && !quota.loading && (
+            <div className="mx-4 my-2 p-3 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-900/10 rounded-lg border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2 mb-2">
+                <MdUpgrade className="text-orange-600 dark:text-orange-400 text-lg" />
+                <span className="text-sm font-medium text-orange-800 dark:text-orange-300">
+                  Need more space?
+                </span>
+              </div>
+              <p className="text-xs text-orange-700 dark:text-orange-400 mb-2">
+                Get 50GB storage, 1000 files, and more.
+              </p>
+              <Link
+                to="/upgrade"
+                className="block w-full text-center px-3 py-1.5 bg-orange-600 text-white text-xs font-medium rounded-lg hover:bg-orange-700 transition-colors"
+              >
+                Upgrade to Pro
+              </Link>
+            </div>
+          )}
+
+          {/* Navigation Menu */}
           <nav className="flex-1 overflow-y-auto py-4">
             {filteredMenu.map((item) => {
               const Icon = item.icon;
@@ -123,7 +158,9 @@ const MainLayout = () => {
             })}
           </nav>
 
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          {/* Footer Actions */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 sticky bottom-0 bg-white dark:bg-gray-800">
+            {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
               className={`flex items-center w-full px-4 py-2 mb-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors ${
@@ -138,6 +175,7 @@ const MainLayout = () => {
               {sidebarOpen && <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>}
             </button>
             
+            {/* Logout Button */}
             <button
               onClick={handleLogout}
               className={`flex items-center w-full px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors ${
@@ -151,7 +189,8 @@ const MainLayout = () => {
         </div>
       </aside>
 
-      <main className={`flex-1 ${sidebarOpen ? 'ml-64' : 'ml-20'} transition-all duration-300`}>
+      {/* Main Content */}
+      <main className={`flex-1 ${sidebarOpen ? 'ml-80' : 'ml-20'} transition-all duration-300`}>
         <div className="p-6">
           <Outlet />
         </div>

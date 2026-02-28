@@ -17,26 +17,42 @@ export const register = async (req, res) => {
     
     if (!username || !email || !password) {
       return res.status(400).json({ 
-        error: 'Please provide username, email and password' 
+        success: false,
+        status: 400,
+        message: 'Please provide username, email and password',
+        responsedata: null
       });
     }
 
     // Email validation
     const emailRegex = /^\S+@\S+\.\S+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Please provide a valid email address' });
+      return res.status(400).json({ 
+        success: false,
+        status: 400,
+        message: 'Please provide a valid email address',
+        responsedata: null
+      });
     }
 
     // Password validation
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      return res.status(400).json({ 
+        success: false,
+        status: 400,
+        message: 'Password must be at least 6 characters long',
+        responsedata: null
+      });
     }
 
     // Check JWT secret
     if (!process.env.JWT_SECRET) {
       console.error('❌ JWT_SECRET is not defined');
       return res.status(500).json({ 
-        error: 'Server configuration error - contact administrator' 
+        success: false,
+        status: 500,
+        message: 'Server configuration error - contact administrator',
+        responsedata: null
       });
     }
     
@@ -44,112 +60,57 @@ export const register = async (req, res) => {
     const userExists = await User.findOne({ email });
     if (userExists) {
       console.log('❌ User already exists:', email);
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ 
+        success: false,
+        status: 400,
+        message: 'User already exists',
+        responsedata: null
+      });
     }
     
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // SUPERADMIN COMMENTED START
-    // // Determine role (first user is superAdmin, others are admin)
-    // const userCount = await User.countDocuments();
-    // let role = userCount === 0 ? 'superAdmin' : 'admin';
-    // SUPERADMIN COMMENTED END
-    
-    // NEW: All users are admin (first user is admin, creates company)
     const userCount = await User.countDocuments();
-    let role = 'admin'; // All users are admin
+    let role = 'admin';
     
     console.log(`👑 Setting role: ${role} for user: ${email}`);
     
     // Create user
-    // SUPERADMIN COMMENTED START
-    // // Admin gets 50GB, superAdmin gets 0
-    // const user = await User.create({
-    //   username,
-    //   email,
-    //   password: hashedPassword,
-    //   role: role,
-    //   company: null,
-    //   addedBy: null,
-    //   storageAllocated: role === 'admin' ? 50 * 1024 * 1024 * 1024 : 0, // Admin gets 50GB
-    //   storageUsed: 0,
-    //   allocatedToUsers: 0 // Admin starts with 0 allocated to users
-    // });
-    // SUPERADMIN COMMENTED END
-    
-    // NEW: All users get 50GB
     const user = await User.create({
       username,
       email,
       password: hashedPassword,
       role: role,
-      company: null,  // ⬅️ Keep company as null
+      company: null,
       addedBy: null,
-      storageAllocated: 50 * 1024 * 1024 * 1024, // All users get 50GB
+      storageAllocated: 50 * 1024 * 1024 * 1024,
       storageUsed: 0,
       allocatedToUsers: 0
     });
     
     console.log(`✅ User created with ID: ${user._id}`);
     
-    // COMPANY CREATION COMMENTED OUT START
-    // let company = null;
-    
-    // SUPERADMIN COMMENTED START
-    // // Create company for admin users (not for superAdmin)
-    // if (role === 'admin') {
-    // SUPERADMIN COMMENTED END
-    
-    // // NEW: All users create company (first user's company name, others join? - this needs adjustment)
-    // // For now, all users create their own company
-    // const companyName = `${username}'s Company`;
-    
-    // console.log(`🏢 Creating company: ${companyName} for user: ${username}`);
-    
-    // company = await Company.create({
-    //   name: companyName,
-    //   owner: user._id,
-    //   totalStorage: 50 * 1024 * 1024 * 1024, // 50GB for company
-    //   usedStorage: 0,
-    //   userCount: 1,
-    //   createdBy: null
-    // });
-    
-    // // Update user with company ID
-    // user.company = company._id;
-    // await user.save();
-    
-    // console.log(`✅ Company created with ID: ${company._id}`);
-    
-    // console.log(`📊 Storage summary:`);
-    // console.log(`   - Role: ${role}`);
-    // console.log(`   - User storage allocated: ${(user.storageAllocated / (1024*1024*1024)).toFixed(2)}GB`);
-    // if (company) {
-    //   console.log(`   - Company total storage: ${(company.totalStorage / (1024*1024*1024)).toFixed(2)}GB`);
-    // }
-    // COMPANY CREATION COMMENTED OUT END
-    
     // Generate JWT token
     const token = jwt.sign(
       { 
         id: user._id.toString(), 
         role: user.role, 
-        company: null  // ⬅️ Set company to null in token
+        company: null
       },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     
-    // Prepare user response (exclude sensitive data)
-    const userResponse = {
+    // Prepare response data
+    const responsedata = {
       _id: user._id,
       username: user.username,
       email: user.email,
       role: user.role,
-      company: null,  // ⬅️ Set company to null in response
-      companyName: null,  // ⬅️ Set companyName to null
+      company: null,
+      companyName: null,
       permissions: user.permissions,
       storageAllocated: user.storageAllocated,
       storageUsed: user.storageUsed,
@@ -158,9 +119,9 @@ export const register = async (req, res) => {
     
     res.status(201).json({
       success: true,
+      status: 201,
       message: 'User registered successfully',
-      user: userResponse,
-      // company: company,  ⬅️ Comment out company from response
+      responsedata: responsedata,  // Changed from 'user' to 'responsedata'
       token
     });
     
@@ -172,12 +133,18 @@ export const register = async (req, res) => {
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(400).json({ 
-        error: `${field} already exists` 
+        success: false,
+        status: 400,
+        message: `${field} already exists`,
+        responsedata: null
       });
     }
     
     res.status(500).json({ 
-      error: 'Registration failed. Please try again.' 
+      success: false,
+      status: 500,
+      message: 'Registration failed. Please try again.',
+      responsedata: null
     });
   }
 };
@@ -192,13 +159,21 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
     
     if (!email || !password) {
-      return res.status(400).json({ error: 'Please provide email and password' });
+      return res.status(400).json({ 
+        success: false,
+        status: 400,
+        message: 'Please provide email and password',
+        responsedata: null
+      });
     }
 
     if (!process.env.JWT_SECRET) {
       console.error('❌ JWT_SECRET is not defined');
       return res.status(500).json({ 
-        error: 'Server configuration error' 
+        success: false,
+        status: 500,
+        message: 'Server configuration error',
+        responsedata: null
       });
     }
     
@@ -209,7 +184,12 @@ export const login = async (req, res) => {
     
     if (!user) {
       console.log('❌ User not found:', email);
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ 
+        success: false,
+        status: 401,
+        message: 'Invalid email or password',
+        responsedata: null
+      });
     }
 
     // Compare password
@@ -217,7 +197,12 @@ export const login = async (req, res) => {
     
     if (!isPasswordValid) {
       console.log('❌ Invalid password for:', email);
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ 
+        success: false,
+        status: 401,
+        message: 'Invalid email or password',
+        responsedata: null
+      });
     }
     
     console.log(`✅ Login successful for: ${email}, Role: ${user.role}`);
@@ -233,8 +218,8 @@ export const login = async (req, res) => {
       { expiresIn: '30d' }
     );
     
-    // Prepare user response
-    const userResponse = {
+    // Prepare response data
+    const responsedata = {
       _id: user._id,
       username: user.username,
       email: user.email,
@@ -253,15 +238,19 @@ export const login = async (req, res) => {
     
     res.json({
       success: true,
+      status: 200,
       message: 'Login successful',
-      user: userResponse,
+      responsedata: responsedata,  // Changed from 'user' to 'responsedata'
       token
     });
     
   } catch (error) {
     console.error('❌ Login error:', error.message);
     res.status(500).json({ 
-      error: 'Login failed. Please try again.' 
+      success: false,
+      status: 500,
+      message: 'Login failed. Please try again.',
+      responsedata: null
     });
   }
 };
@@ -276,40 +265,54 @@ export const getProfile = async (req, res) => {
       .populate('company', 'name totalStorage usedStorage');
     
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        status: 404,
+        message: 'User not found',
+        responsedata: null
+      });
     }
     
     // Calculate available storage
     const availableStorage = user.getAvailableQuota ? user.getAvailableQuota() : 
       (user.storageAllocated - user.storageUsed);
     
+    // Prepare profile data
+    const responsedata = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      company: user.company ? {
+        _id: user.company._id,
+        name: user.company.name,
+        totalStorage: user.company.totalStorage,
+        usedStorage: user.company.usedStorage
+      } : null,
+      permissions: user.permissions,
+      storage: {
+        allocated: user.storageAllocated,
+        used: user.storageUsed,
+        available: availableStorage,
+        allocatedToUsers: user.allocatedToUsers || 0
+      },
+      createdAt: user.createdAt
+    };
+    
     res.json({
       success: true,
-      user: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        company: user.company ? {
-          _id: user.company._id,
-          name: user.company.name,
-          totalStorage: user.company.totalStorage,
-          usedStorage: user.company.usedStorage
-        } : null,
-        permissions: user.permissions,
-        storage: {
-          allocated: user.storageAllocated,
-          used: user.storageUsed,
-          available: availableStorage,
-          allocatedToUsers: user.allocatedToUsers || 0
-        },
-        createdAt: user.createdAt
-      }
+      status: 200,
+      responsedata: responsedata  // Changed from 'user' to 'responsedata'
     });
     
   } catch (error) {
     console.error('❌ Get profile error:', error);
-    res.status(500).json({ error: 'Server error: ' + error.message });
+    res.status(500).json({ 
+      success: false,
+      status: 500,
+      message: 'Server error: ' + error.message,
+      responsedata: null
+    });
   }
 };
 
@@ -318,14 +321,20 @@ export const getProfile = async (req, res) => {
 // @access  Private
 export const logout = async (req, res) => {
   try {
-    // Since we're using JWT, we just need to tell client to remove token
     res.json({ 
       success: true,
-      message: 'Logged out successfully' 
+      status: 200,
+      message: 'Logged out successfully',
+      responsedata: null
     });
   } catch (error) {
     console.error('❌ Logout error:', error);
-    res.status(500).json({ error: 'Logout failed' });
+    res.status(500).json({ 
+      success: false,
+      status: 500,
+      message: 'Logout failed',
+      responsedata: null
+    });
   }
 };
 

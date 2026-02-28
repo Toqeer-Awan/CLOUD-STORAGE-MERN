@@ -106,11 +106,7 @@ const userSchema = new mongoose.Schema({
   
   permissions: {
     type: Object,
-    default: {
-      view: true, upload: true, download: true, delete: false,
-      addUser: false, removeUser: false, changeRole: false,
-      manageFiles: false, manageStorage: false, assignStorage: false
-    }
+    default: null 
   },
   authProvider: {
     type: String,
